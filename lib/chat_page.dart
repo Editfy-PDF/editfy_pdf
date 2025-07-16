@@ -36,6 +36,7 @@ class _ChatPageState extends State<ChatPage>{
   void dispose(){
     _textEditingController.removeListener(_onPromptChange);
     _textEditingController.dispose();
+    _streamController.close();
     super.dispose();
   }
 

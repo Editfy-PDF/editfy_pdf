@@ -1,6 +1,4 @@
-//import 'package:editfy_pdf/main.dart';
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import 'package:editfy_pdf/config_page.dart';
@@ -33,6 +31,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose(){
+    _streamController.close();
     _dbService.dispose();
     super.dispose();
   }
