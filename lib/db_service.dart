@@ -92,11 +92,11 @@ class DbService {
   //  FUNÇÕES PARA MESSAGE
   //----------------------------------------------------------------------------------------
 
-  Future<void> saveMessage(bool isUser, String  content, String dateTime, Chat chat) async{
+  Future<void> saveMessage(bool isUser, String  content, Chat chat) async{
     final newMsg = Message()
     ..isUser = isUser
     ..content = content
-    ..dateTime = dateTime
+    ..dateTime = DateTime.now()
     ..chat.value = chat;
     
     final isar = await db;

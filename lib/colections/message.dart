@@ -16,5 +16,5 @@ class Message{
   
   late bool isUser;
   String? content;
-  late String dateTime;
+  late DateTime dateTime;
 }

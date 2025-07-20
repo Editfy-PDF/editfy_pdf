@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:editfy_pdf/doc_viewer.dart';
 import 'package:editfy_pdf/db_service.dart';
 
-// Adicionar parser de PDF
+// Adicionar parser de PDF (com LangChain.dart)
 
 class ChatPage extends StatefulWidget{
   final Chat metadata;
@@ -19,7 +19,7 @@ class ChatPage extends StatefulWidget{
 class _ChatPageState extends State<ChatPage>{
   final TextEditingController _textEditingController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final StreamController _streamController = StreamController.broadcast();
+  final StreamController _streamController = StreamController();
   late DbService _dbService;
 
   bool _isBtnEnabled = false;
@@ -37,6 +37,7 @@ class _ChatPageState extends State<ChatPage>{
     _textEditingController.removeListener(_onPromptChange);
     _textEditingController.dispose();
     _streamController.close();
+    _dbService.dispose();
     super.dispose();
   }
 
@@ -49,7 +50,7 @@ class _ChatPageState extends State<ChatPage>{
   void _sendMessage(){
     final msg = _textEditingController.text.trim();
     msg.isEmpty ? null : setState((){
-      _dbService.saveMessage(true, msg, '', widget.metadata);
+      _dbService.saveMessage(true, msg, widget.metadata);
 
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
@@ -58,6 +59,14 @@ class _ChatPageState extends State<ChatPage>{
       );
 
       _textEditingController.clear();
+    });
+
+    reciveMessage();
+  }
+
+  void reciveMessage(){
+    setState(() {
+      _dbService.saveMessage(false, 'LLM responce', widget.metadata);
     });
   }
 

@@ -43,14 +43,15 @@ class _HomePageState extends State<HomePage> {
     );
     
     if (result != null) {
-        if(!chatList.any((key)=> key.docPath == result.files.first.path!)){
-          _dbService.saveChat(
-            result.files.first.name,
-            result.files.first.path!
-          );
-        }
+      if(!chatList.any((key)=> key.docPath == result.files.first.path!)){
+        _dbService.saveChat(
+          result.files.first.name,
+          result.files.first.path!
+        );
       }
+    }
   }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

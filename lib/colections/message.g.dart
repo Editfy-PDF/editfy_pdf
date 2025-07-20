@@ -25,7 +25,7 @@ const MessageSchema = CollectionSchema(
     r'dateTime': PropertySchema(
       id: 1,
       name: r'dateTime',
-      type: IsarType.string,
+      type: IsarType.dateTime,
     ),
     r'isUser': PropertySchema(
       id: 2,
@@ -66,7 +66,6 @@ int _messageEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
-  bytesCount += 3 + object.dateTime.length * 3;
   return bytesCount;
 }
 
@@ -77,7 +76,7 @@ void _messageSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeString(offsets[0], object.content);
-  writer.writeString(offsets[1], object.dateTime);
+  writer.writeDateTime(offsets[1], object.dateTime);
   writer.writeBool(offsets[2], object.isUser);
 }
 
@@ -89,7 +88,7 @@ Message _messageDeserialize(
 ) {
   final object = Message();
   object.content = reader.readStringOrNull(offsets[0]);
-  object.dateTime = reader.readString(offsets[1]);
+  object.dateTime = reader.readDateTime(offsets[1]);
   object.id = id;
   object.isUser = reader.readBool(offsets[2]);
   return object;
@@ -105,7 +104,7 @@ P _messageDeserializeProp<P>(
     case 0:
       return (reader.readStringOrNull(offset)) as P;
     case 1:
-      return (reader.readString(offset)) as P;
+      return (reader.readDateTime(offset)) as P;
     case 2:
       return (reader.readBool(offset)) as P;
     default:
@@ -350,54 +349,46 @@ extension MessageQueryFilter
   }
 
   QueryBuilder<Message, Message, QAfterFilterCondition> dateTimeEqualTo(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+      DateTime value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'dateTime',
         value: value,
-        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<Message, Message, QAfterFilterCondition> dateTimeGreaterThan(
-    String value, {
+    DateTime value, {
     bool include = false,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         include: include,
         property: r'dateTime',
         value: value,
-        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<Message, Message, QAfterFilterCondition> dateTimeLessThan(
-    String value, {
+    DateTime value, {
     bool include = false,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.lessThan(
         include: include,
         property: r'dateTime',
         value: value,
-        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<Message, Message, QAfterFilterCondition> dateTimeBetween(
-    String lower,
-    String upper, {
+    DateTime lower,
+    DateTime upper, {
     bool includeLower = true,
     bool includeUpper = true,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
@@ -406,75 +397,6 @@ extension MessageQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<Message, Message, QAfterFilterCondition> dateTimeStartsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'dateTime',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<Message, Message, QAfterFilterCondition> dateTimeEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'dateTime',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<Message, Message, QAfterFilterCondition> dateTimeContains(
-      String value,
-      {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.contains(
-        property: r'dateTime',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<Message, Message, QAfterFilterCondition> dateTimeMatches(
-      String pattern,
-      {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.matches(
-        property: r'dateTime',
-        wildcard: pattern,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<Message, Message, QAfterFilterCondition> dateTimeIsEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'dateTime',
-        value: '',
-      ));
-    });
-  }
-
-  QueryBuilder<Message, Message, QAfterFilterCondition> dateTimeIsNotEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'dateTime',
-        value: '',
       ));
     });
   }
@@ -659,10 +581,9 @@ extension MessageQueryWhereDistinct
     });
   }
 
-  QueryBuilder<Message, Message, QDistinct> distinctByDateTime(
-      {bool caseSensitive = true}) {
+  QueryBuilder<Message, Message, QDistinct> distinctByDateTime() {
     return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'dateTime', caseSensitive: caseSensitive);
+      return query.addDistinctBy(r'dateTime');
     });
   }
 
@@ -687,7 +608,7 @@ extension MessageQueryProperty
     });
   }
 
-  QueryBuilder<Message, String, QQueryOperations> dateTimeProperty() {
+  QueryBuilder<Message, DateTime, QQueryOperations> dateTimeProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'dateTime');
     });
