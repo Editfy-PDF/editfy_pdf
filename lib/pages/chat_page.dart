@@ -1,16 +1,16 @@
 import 'dart:async';
+import 'package:flutter/material.dart';
 
 import 'package:editfy_pdf/colections/chat.dart';
-import 'package:flutter/material.dart';
-import 'package:editfy_pdf/doc_viewer.dart';
+import 'package:editfy_pdf/pages/doc_viewer.dart';
 import 'package:editfy_pdf/db_service.dart';
+import 'package:editfy_pdf/llm_service.dart';
 
 // Adicionar parser de PDF (com LangChain.dart)
 
 class ChatPage extends StatefulWidget{
   final Chat metadata;
-  final String? bdPath;
-  const ChatPage({super.key, required this.metadata, required this.bdPath});
+  const ChatPage({super.key, required this.metadata});
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -20,16 +20,18 @@ class _ChatPageState extends State<ChatPage>{
   final TextEditingController _textEditingController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final StreamController _streamController = StreamController();
-  late DbService _dbService;
+  final DbService _dbService = DbService();
+  late LlmService _llmService;
 
   bool _isBtnEnabled = false;
 
   @override
   void initState(){
     super.initState();
-    _dbService = DbService(widget.bdPath);
+    _llmService = LlmService(widget.metadata);
     _textEditingController.addListener(_onPromptChange);
     _streamController.addStream(_dbService.listenToMessage(widget.metadata));
+    _llmService.syncMessages();
   }
 
   @override
@@ -37,7 +39,7 @@ class _ChatPageState extends State<ChatPage>{
     _textEditingController.removeListener(_onPromptChange);
     _textEditingController.dispose();
     _streamController.close();
-    _dbService.dispose();
+    //_llmService.dispose(); quebra o app ao sair da tela de chat
     super.dispose();
   }
 
@@ -49,7 +51,9 @@ class _ChatPageState extends State<ChatPage>{
   
   void _sendMessage(){
     final msg = _textEditingController.text.trim();
-    msg.isEmpty ? null : setState((){
+    msg.isEmpty ? null : setState(() {
+      _llmService.sendMsgToModel(msg.trim());
+
       _dbService.saveMessage(true, msg, widget.metadata);
 
       _scrollController.animateTo(
@@ -60,12 +64,11 @@ class _ChatPageState extends State<ChatPage>{
 
       _textEditingController.clear();
     });
-
-    reciveMessage();
   }
 
-  void reciveMessage(){
+  void reciveMessage() async{
     setState(() {
+      
       _dbService.saveMessage(false, 'LLM responce', widget.metadata);
     });
   }
@@ -154,13 +157,7 @@ class _ChatPageState extends State<ChatPage>{
                       textInputAction: TextInputAction.newline,
                       enableInteractiveSelection: true,
                       decoration: InputDecoration(
-                        labelText: 'Faça uma pergunda',
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: BorderSide(
-                            color: theme.colorScheme.onSurface
-                          )
-                        ),
+                        labelText: 'Faça uma pergunda'
                       ),
                     ),
                   ),

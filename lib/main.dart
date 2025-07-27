@@ -1,27 +1,33 @@
-import 'package:editfy_pdf/home_page.dart';
 import 'package:flutter/material.dart';
+
+import 'package:editfy_pdf/db_service.dart';
+import 'package:editfy_pdf/pages/home_page.dart';
+import 'package:editfy_pdf/config_service.dart';
+
 import 'package:provider/provider.dart';
 
-import 'package:file_picker/file_picker.dart';
 
 void main() async{
-  final dbPath = await FilePicker.platform.getDirectoryPath();
-  
   runApp(ChangeNotifierProvider(
-    create: (_) => DefinitionsProvider(dbPath),
+    create: (_) => DefinitionsProvider(),
     child: EditfyPDF()
   ));
 }
 
 class DefinitionsProvider extends ChangeNotifier{
   var themeState = ThemeMode.system;
-  late String? dbPath;
+  final cfgService = ConfigService();
+  late DbService dbService;
 
-  DefinitionsProvider(this.dbPath);
+  DefinitionsProvider(){
+    dbService = DbService();
+    changeTheme(cfgService.config['theme']);
+  }
   
   Future<void> changeTheme(String theme) async{
     theme == 'system' ? themeState = ThemeMode.system :
     (theme == 'dark' ? themeState = ThemeMode.dark : themeState = ThemeMode.light);
+    
     notifyListeners();
   }
 }
@@ -32,7 +38,21 @@ class EditfyPDF extends StatelessWidget {
 
   @override
   Widget build(BuildContext context){
-    final definitions = Provider.of<DefinitionsProvider>(context);
+    final theme = Provider.of<DefinitionsProvider>(context).themeState;
+
+    final textFieldDecoration = InputDecorationTheme(
+      border: OutlineInputBorder(),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(20),
+        borderSide: BorderSide(color: Colors.grey),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(20),
+        borderSide: BorderSide(color: Colors.grey),
+      ),
+      isDense: true,
+      contentPadding: EdgeInsets.all(12),
+    );
 
     final lightTheme = ColorScheme.light(
       primary: const Color(0xFFD6D6D6), // usado para AppBar ou fundo principal
@@ -58,10 +78,14 @@ class EditfyPDF extends StatelessWidget {
 
     return MaterialApp(
       title: 'Editfy PDF',
-      themeMode: definitions.themeState,
-      theme: ThemeData.from(colorScheme: lightTheme),
-      darkTheme: ThemeData.from(colorScheme: darkTheme),
-      home: HomePage(bdPath: definitions.dbPath),
+      themeMode: theme,
+      theme: ThemeData.from(colorScheme: lightTheme).copyWith(
+        inputDecorationTheme: textFieldDecoration
+      ),
+      darkTheme: ThemeData.from(colorScheme: darkTheme).copyWith(
+        inputDecorationTheme: textFieldDecoration
+      ),
+      home: HomePage(),
     );
   }
 }
