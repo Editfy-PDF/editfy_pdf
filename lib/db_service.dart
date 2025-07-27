@@ -1,37 +1,55 @@
-import 'package:isar/isar.dart';
-import 'package:file_picker/file_picker.dart';
-
+import 'package:editfy_pdf/config_service.dart';
 import 'package:editfy_pdf/colections/chat.dart';
 import 'package:editfy_pdf/colections/message.dart';
 
-class DbService {
-  late Future<Isar> db;
-  final String? dbPath;
+import 'package:isar/isar.dart';
+import 'package:file_picker/file_picker.dart';
 
-  DbService(this.dbPath){
-    db = openDb(dbPath);
+
+class DbService {
+  static DbService? _instance;
+  static Future<Isar>? _db;
+  final ConfigService _cfgService = ConfigService();
+
+  DbService._internal(){
+    _db ??= _openDb();
   }
+
+  factory DbService(){
+    return _instance ??= DbService._internal();
+  }
+
+  Future<Isar> get db => _db!;
 
   //  FUNÇÕES GERAIS
   //---------------------------------------------------------------
 
   Future<void> dispose() async{
     final isar = await db;
-
     isar.close();
+
+    _db = null;
+    _instance = null;
   }
 
-  Future<Isar> openDb(String? path) async{
-    final dir = path ?? await FilePicker.platform.getDirectoryPath();
+  Future<Isar> _openDb() async{
+    try{
+      if(_cfgService.config['dbpath'] == '' || _cfgService.config['dbpath'] == null){
+        final dbPath = await FilePicker.platform.getDirectoryPath();
+        _cfgService.modfyCfgTable('dbpath', dbPath);
+      }
 
-    if(Isar.instanceNames.isEmpty){
-      return await Isar.open(
-        [ChatSchema, MessageSchema],
-        directory: dir!
-      );
+      if(Isar.instanceNames.isEmpty){
+        return await Isar.open(
+          [ChatSchema, MessageSchema],
+          directory: _cfgService.config['dbpath']
+        );
+      }
+
+      return Future.value(Isar.getInstance());
+    } catch(e){
+      return _openDb();
     }
-
-    return Future.value(Isar.getInstance());
   }
 
   Future<bool> isLoaded() async{

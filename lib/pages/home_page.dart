@@ -1,17 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-import 'package:editfy_pdf/config_page.dart';
-import 'package:editfy_pdf/chat_page.dart';
+import 'package:editfy_pdf/pages/config_page.dart';
+import 'package:editfy_pdf/pages/chat_page.dart';
 import 'package:editfy_pdf/db_service.dart';
 import 'package:editfy_pdf/colections/chat.dart';
 
 import 'package:file_picker/file_picker.dart';
 
 class HomePage extends StatefulWidget {
-  final String? bdPath;
-  
-  const HomePage({super.key, required this.bdPath});
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -19,13 +17,12 @@ class HomePage extends StatefulWidget {
 
 
 class _HomePageState extends State<HomePage> {
-  late DbService _dbService;
+  final DbService _dbService = DbService();
   final StreamController _streamController = StreamController.broadcast();
 
   @override
   void initState(){
     super.initState();
-    _dbService = DbService(widget.bdPath);
     _streamController.addStream(_dbService.listenToChat());
   }
 
@@ -111,7 +108,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 onTap: () {
                   Navigator.push(context, MaterialPageRoute(builder: (context){
-                    return ChatPage(metadata: asyncSnapshot.data![index], bdPath: widget.bdPath);
+                    return ChatPage(metadata: asyncSnapshot.data![index]);
                   }));
                 }
               );
