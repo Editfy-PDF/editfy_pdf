@@ -1,15 +1,13 @@
-import 'package:editfy_pdf/config_service.dart';
 import 'package:editfy_pdf/colections/chat.dart';
 import 'package:editfy_pdf/colections/message.dart';
 
 import 'package:isar/isar.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 
 
 class DbService {
   static DbService? _instance;
   static Future<Isar>? _db;
-  final ConfigService _cfgService = ConfigService();
 
   DbService._internal(){
     _db ??= _openDb();
@@ -33,23 +31,22 @@ class DbService {
   }
 
   Future<Isar> _openDb() async{
-    try{
-      if(_cfgService.config['dbpath'] == '' || _cfgService.config['dbpath'] == null){
-        final dbPath = await FilePicker.platform.getDirectoryPath();
-        _cfgService.modfyCfgTable('dbpath', dbPath);
-      }
+    //try{
+    final dbPath = await getApplicationSupportDirectory();
 
-      if(Isar.instanceNames.isEmpty){
-        return await Isar.open(
-          [ChatSchema, MessageSchema],
-          directory: _cfgService.config['dbpath']
-        );
-      }
+    if(Isar.instanceNames.isEmpty){
+      print('Abrindo/criando db...');
+      return await Isar.open( // Erro ao executar essa ação
+        [ChatSchema, MessageSchema],
+        directory: dbPath.path
+      );
+    }
 
       return Future.value(Isar.getInstance());
-    } catch(e){
+    /*} catch(e){
+      print('Falha ao abrir db');
       return _openDb();
-    }
+    }*/
   }
 
   Future<bool> isLoaded() async{

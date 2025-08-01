@@ -33,14 +33,23 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  void submitDocument(List<Chat> chatList) async{
+  void submitDocument(List<Chat>? chatList) async{
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf']
     );
     
-    if (result != null) {
-      if(!chatList.any((key)=> key.docPath == result.files.first.path!)){
+    if(chatList != null){
+      if (result != null) {
+        if(!chatList.any((key)=> key.docPath == result.files.first.path!)){
+          _dbService.saveChat(
+            result.files.first.name,
+            result.files.first.path!
+          );
+        }
+      }
+    } else{
+      if(result != null){
         _dbService.saveChat(
           result.files.first.name,
           result.files.first.path!
@@ -122,9 +131,9 @@ class _HomePageState extends State<HomePage> {
         builder: (context, asyncSnapshot) {
           return FloatingActionButton(
             onPressed: () async{
-              asyncSnapshot.hasData ? submitDocument(
-                asyncSnapshot.data!
-              ) : null;
+              submitDocument(
+                asyncSnapshot.data
+              );
             },
             child: Icon(Icons.arrow_upward),
           );
