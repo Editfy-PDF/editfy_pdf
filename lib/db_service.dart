@@ -1,13 +1,13 @@
 import 'package:editfy_pdf/colections/chat.dart';
 import 'package:editfy_pdf/colections/message.dart';
+import 'package:editfy_pdf/objectbox.g.dart';
 
-import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
 
 class DbService {
   static DbService? _instance;
-  static Future<Isar>? _db;
+  static Future<Store>? _db;
 
   DbService._internal(){
     _db ??= _openDb();
@@ -17,121 +17,125 @@ class DbService {
     return _instance ??= DbService._internal();
   }
 
-  Future<Isar> get db => _db!;
+  Future<Store> get db => _db!;
 
   //  FUNÇÕES GERAIS
   //---------------------------------------------------------------
 
   Future<void> dispose() async{
-    final isar = await db;
-    isar.close();
+    final box = await db;
+    box.close();
 
     _db = null;
     _instance = null;
   }
 
-  Future<Isar> _openDb() async{
-    //try{
-    final dbPath = await getApplicationSupportDirectory();
-
-    if(Isar.instanceNames.isEmpty){
-      print('Abrindo/criando db...');
-      return await Isar.open( // Erro ao executar essa ação
-        [ChatSchema, MessageSchema],
-        directory: dbPath.path
-      );
-    }
-
-      return Future.value(Isar.getInstance());
-    /*} catch(e){
-      print('Falha ao abrir db');
-      return _openDb();
-    }*/
+  Future<Store> _openDb() async{
+    final dbPath = await getApplicationDocumentsDirectory();
+    
+    return await openStore(directory: "${dbPath.path}/openbox.db"); 
   }
 
   Future<bool> isLoaded() async{
-    final isar = await db;
+    final box = await db;
 
-    return isar.isOpen;
+    return box.isClosed();
   }
 
   Future<void> deleteAll() async{
-    final isar = await db;
+    final box = await db;
     
-    await isar.writeTxn(() => isar.clear());
+    await box.box().removeAllAsync();
   }
 
 // FUNÇÕES PARA CHAT
 //---------------------------------------------------------------------
 
   Future<void> saveChat(String title, String path) async{
-    final newChat = Chat()
-    ..chatName = title
-    ..docPath = path;
+    final newChat = Chat(
+      chatName: title,
+      docPath: path
+    );
 
-    final isar = await db;
+    final box = await db;
 
-    await isar.writeTxn(() async{
-      await isar.chats.put(newChat);
-    });
+    box.box<Chat>().put(newChat);
   }
 
   Future<bool> chatIsEmpty() async{
-    final isar = await db;
-    return (isar.chats.countSync() > 0);
+    final box = await db;
+    return box.box<Chat>().isEmpty();
   }
 
   Stream<List<Chat>> listenToChat() async*{
-    final isar = await db;
+    final box = await db;
+    final content = box.box<Chat>();
     
-    yield* isar.chats.where().watch(fireImmediately: true);
+    yield* content.query()
+    .watch(triggerImmediately: true)
+    .map((q) => q.find());
   }
 
   Future<void> deleteChat(String name) async{
-    final isar = await db;
+    final box = await db;
+    final chats = box.box<Chat>();
 
-    await isar.writeTxn(() async{
-      final chat = await isar.chats
-      .where()
-      .chatNameEqualTo(name)
-      .findFirst();
+    late Chat? chat;
+    try{
+      final cQuery = chats.query(
+        Chat_.chatName.equals(name)
+      ).build();
+      chat = cQuery.find().first;
+      cQuery.close();
+    } catch(e){
+      chat = null;
+    }
       
-      if(chat != null){
-        chat.messages.filter().deleteAll();
-
-        await isar.chats.delete(chat.id);
+    if(chat != null){
+      final mQuery = box.box<Message>().query(
+        Message_.chatId.equals(chat.id)
+      ).build();
+      final messages = mQuery.find();
+      if(messages.isNotEmpty){
+        final List<int> ids = [];
+        for(var i in messages){
+          ids.add(i.chatId);
+        }
+        box.box<Message>().removeMany(ids);
       }
-    });
+      mQuery.close();
+      
+      await box.box<Chat>().removeAsync(chat.id);
+    }
   }
 
   //  FUNÇÕES PARA MESSAGE
   //----------------------------------------------------------------------------------------
 
   Future<void> saveMessage(bool isUser, String  content, Chat chat) async{
-    final newMsg = Message()
-    ..isUser = isUser
-    ..content = content
-    ..dateTime = DateTime.now()
-    ..chat.value = chat;
+    final newMsg = Message(
+      isUser: isUser,
+      content: content,
+      dateTime: DateTime.now(),
+      chatId: chat.id
+    );
     
-    final isar = await db;
+    final box = await db;
 
-    await isar.writeTxn(() async{
-      await isar.messages.put(newMsg);
-      await newMsg.chat.save();
-    });
+    box.box<Message>().put(newMsg);
   }
 
   Future<bool> messageIsEmpty() async{
-    final isar = await db;
-    return (isar.chats.countSync() > 0);
+    final box = await db;
+    return box.box<Message>().isEmpty();
   }
 
   Stream<List<Message>> listenToMessage(Chat chat) async*{
-    final isar = await db;
-
-    yield* isar.messages.filter()
-    .chat((q) => q.idEqualTo(chat.id))
-    .watch(fireImmediately: true);
+    final box = await db;
+    final content = box.box<Message>();
+    
+    yield* content.query(Message_.chatId.equals(chat.id))
+    .watch(triggerImmediately: true)
+    .map((q) => q.find());
   }
 }

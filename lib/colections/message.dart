@@ -1,20 +1,18 @@
-// Para construir as coleções do DB
-// flutter pub run build_runner build --delete-conflicting-outputs
+// Para gerar o modelo
+// dart run build_runner build
 
-import 'package:isar/isar.dart';
+import 'package:objectbox/objectbox.dart';
 
-import 'chat.dart';
-
-part 'message.g.dart';
-
-
-@Collection()
+@Entity()
 class Message{
-  Id id = Isar.autoIncrement;
+  @Id()
+  int id;
+
+  int chatId;
   
-  final chat = IsarLink<Chat>();
-  
-  late bool isUser;
+  bool isUser;
   String? content;
-  late DateTime dateTime;
+  DateTime dateTime;
+
+  Message({this.id=0, required this.isUser, this.content, required this.dateTime, required this.chatId});
 }

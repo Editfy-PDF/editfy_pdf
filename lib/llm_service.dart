@@ -12,7 +12,7 @@ class LlmService {
   final DbService _dbService = DbService();
   final configTable = ConfigService();
   final _streamController = StreamController();
-  late dynamic model;
+  late ChatOpenAI model;
   final List<ChatMessage> chatMessages = [];
   late Chat chat;
 
@@ -53,7 +53,7 @@ class LlmService {
 
   Future<ChatResult> sendMsgToModel(String text) async{
     // Adicionar try catch
-    try{
+    //try{
       chatMessages.add(ChatMessage.humanText(text));
 
       final resp = await model.invoke(PromptValue.chat(chatMessages));
@@ -63,9 +63,9 @@ class LlmService {
       _dbService.saveMessage(false, resp.output.content.trim(), chat);
 
       return resp;
-    } catch(e) {
+    /*} catch(e) {
       print('Erro => $e');
       throw UnimplementedError();
-    }
+    }*/
   }
 }

@@ -8,6 +8,10 @@ import 'package:provider/provider.dart';
 
 
 void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+
+  DbService();
+
   runApp(ChangeNotifierProvider(
     create: (_) => DefinitionsProvider(),
     child: EditfyPDF()
@@ -17,10 +21,8 @@ void main() async{
 class DefinitionsProvider extends ChangeNotifier{
   var themeState = ThemeMode.system;
   final cfgService = ConfigService();
-  late DbService dbService;
 
   DefinitionsProvider(){
-    dbService = DbService();
     changeTheme(cfgService.config['theme']);
   }
   
