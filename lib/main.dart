@@ -11,6 +11,7 @@ void main() async{
   WidgetsFlutterBinding.ensureInitialized();
 
   DbService();
+  ConfigService();
 
   runApp(ChangeNotifierProvider(
     create: (_) => DefinitionsProvider(),
