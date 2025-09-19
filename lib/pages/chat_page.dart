@@ -121,6 +121,9 @@ class _ChatPageState extends State<ChatPage>{
                   itemCount: asyncSnapshot.data!.length,
                   itemBuilder: (context, index){
                     final message = asyncSnapshot.data![index];
+
+                    if(message == null) return null;
+
                     return Align(
                       alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(

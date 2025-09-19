@@ -10,6 +10,10 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
+    packagingOptions { // gambiarra p/ compilar com as duas libs que usam "libpdfium.so"
+        pickFirst("lib/arm64-v8a/libpdfium.so")
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

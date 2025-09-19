@@ -5,6 +5,8 @@ import 'package:editfy_pdf/config_service.dart';
 import 'package:editfy_pdf/colections/message.dart';
 import 'package:editfy_pdf/colections/chat.dart';
 
+import 'package:pdfium_dart/pdfium_dart.dart';
+
 import 'package:langchain/langchain.dart';
 import 'package:langchain_openai/langchain_openai.dart';
 
@@ -15,6 +17,7 @@ class LlmService {
   late ChatOpenAI model;
   final List<ChatMessage> chatMessages = [];
   late Chat chat;
+  final pdfium = Pdfium();
 
   LlmService(this.chat){
     if(configTable.config['backend'] == 'openai'){
@@ -26,12 +29,31 @@ class LlmService {
     }
 
     _streamController.addStream(_dbService.listenToMessage(chat));
+
+    chatMessages.add(
+      ChatMessage.system('Você é um assistente que responde de forma direta usando o conteúdo de doocumentos.')
+    );
+
+    pdfium.openDoc(chat.docPath);
+
+    final npages = pdfium.countPages();
+    chatMessages.add(ChatMessage.system('Documento PDF: ${chat.chatName}'));
+
+    for(int i=0; i < npages; i++){
+      chatMessages.add(
+        ChatMessage.system(
+          'Página $i\n${pdfium.getText(i)}'
+        )
+      );
+    }
+
+    chatMessages.add(ChatMessage.system('Fim do documento'));
   }
 
   void dispose(){
     //_streamController.close(); erro
     model.close();
-  }
+  } 
 
   void syncMessages() async{
     List<Message> dbMessages = [];
@@ -51,9 +73,9 @@ class LlmService {
     }
   }
 
-  Future<ChatResult> sendMsgToModel(String text) async{
+  Future<ChatResult?> sendMsgToModel(String text) async{
     // Adicionar try catch
-    //try{
+    try{
       chatMessages.add(ChatMessage.humanText(text));
 
       final resp = await model.invoke(PromptValue.chat(chatMessages));
@@ -63,9 +85,9 @@ class LlmService {
       _dbService.saveMessage(false, resp.output.content.trim(), chat);
 
       return resp;
-    /*} catch(e) {
+    } catch(e) {
       print('Erro => $e');
-      throw UnimplementedError();
-    }*/
+      return null;
+    }
   }
 }
