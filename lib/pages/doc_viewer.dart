@@ -2,7 +2,7 @@
 import 'package:editfy_pdf/colections/chat.dart';
 import 'package:flutter/material.dart';
 
-import 'package:pdfrx/pdfrx.dart';
+//import 'package:pdfrx/pdfrx.dart';
 
 class DocViewer extends StatefulWidget {
   final Chat metadata;
@@ -27,12 +27,12 @@ class _DocViewerState extends State<DocViewer> {
 
       body: InteractiveViewer(
         panEnabled: true,
-        child: PdfViewer.asset(
+        child: Placeholder(), /*PdfViewer.asset(
           widget.metadata.docPath,
           params: PdfViewerParams(
             enableTextSelection: true,
           ),
-        ),
+        ),*/
       )
     );
   }

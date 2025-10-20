@@ -107,7 +107,11 @@ class _HomePageState extends State<HomePage> {
             itemCount: asyncSnapshot.data!.length,
             itemBuilder: (BuildContext context, int index){
               return ListTile( // Adicionar imagem do arquivo
-                leading: CircularProgressIndicator(),
+                leading: const Icon(
+                Icons.picture_as_pdf,
+                color: Colors.redAccent,
+                size: 40, 
+                ),
                 title: Text(asyncSnapshot.data![index].chatName),
                 trailing: IconButton(
                   icon: Icon(Icons.delete),
