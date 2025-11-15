@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:editfy_pdf/db_service.dart';
 import 'package:editfy_pdf/pages/home_page.dart';
 import 'package:editfy_pdf/config_service.dart';
+//import 'package:editfy_pdf/background_service.dart';
 
 import 'package:provider/provider.dart';
+//import 'package:flutter_background_service/flutter_background_service.dart';
 
 
 void main() async{
@@ -12,6 +14,7 @@ void main() async{
 
   DbService();
   ConfigService();
+  //await bgServiceInvoke();
 
   runApp(ChangeNotifierProvider(
     create: (_) => DefinitionsProvider(),
@@ -80,6 +83,7 @@ class EditfyPDF extends StatelessWidget {
     );
 
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Editfy PDF',
       themeMode: theme,
       theme: ThemeData.from(colorScheme: lightTheme).copyWith(
@@ -93,3 +97,21 @@ class EditfyPDF extends StatelessWidget {
   }
 }
 
+/*Future<void> bgServiceInvoke() async{
+  DartPluginRegistrant.ensureInitialized();
+  final service = FlutterBackgroundService();
+  await service.configure(
+    androidConfiguration: AndroidConfiguration(
+      onStart: initializeBgService,
+      isForegroundMode: true,
+      autoStart: true,
+      foregroundServiceTypes: [AndroidForegroundType.specialUse, AndroidForegroundType.dataSync]
+    ),
+    iosConfiguration: IosConfiguration(
+      onForeground: initializeBgService,
+      onBackground: (service) async => true
+    )
+  );
+
+  await service.startService();
+}*/

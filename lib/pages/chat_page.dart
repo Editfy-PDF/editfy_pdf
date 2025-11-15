@@ -1,12 +1,17 @@
 import 'dart:async';
+import 'dart:isolate';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import 'package:editfy_pdf/colections/chat.dart';
 import 'package:editfy_pdf/pages/doc_viewer.dart';
 import 'package:editfy_pdf/db_service.dart';
+//import 'package:editfy_pdf/background_service.dart';
 import 'package:editfy_pdf/llm_service.dart';
+import 'package:editfy_pdf/config_service.dart';
 
-// Adicionar parser de PDF (com LangChain.dart)
+//import 'package:flutter_background_service/flutter_background_service.dart';
 
 class ChatPage extends StatefulWidget{
   final Chat metadata;
@@ -19,19 +24,19 @@ class ChatPage extends StatefulWidget{
 class _ChatPageState extends State<ChatPage>{
   final TextEditingController _textEditingController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final StreamController _streamController = StreamController();
+  final StreamController _streamController = StreamController.broadcast();
   final DbService _dbService = DbService();
-  late LlmService _llmService;
+  final ConfigService configTable = ConfigService();
+  StreamSubscription? _sub;
 
   bool _isBtnEnabled = false;
 
   @override
   void initState(){
     super.initState();
-    _llmService = LlmService(widget.metadata);
     _textEditingController.addListener(_onPromptChange);
     _streamController.addStream(_dbService.listenToMessage(widget.metadata));
-    _llmService.syncMessages();
+    _reciveMessage();
   }
 
   @override
@@ -39,7 +44,7 @@ class _ChatPageState extends State<ChatPage>{
     _textEditingController.removeListener(_onPromptChange);
     _textEditingController.dispose();
     _streamController.close();
-    //_llmService.dispose(); quebra o app ao sair da tela de chat
+    _sub?.cancel();
     super.dispose();
   }
 
@@ -48,11 +53,20 @@ class _ChatPageState extends State<ChatPage>{
     _isBtnEnabled = _textEditingController.text.trim().isNotEmpty;
     });
   }
+
+  void _reciveMessage(){
+    _sub?.cancel();
+    /*_sub = FlutterBackgroundService().on('return').listen((data){
+      if(data != null && data.values.first is String && data.values.first != ''){}
+      _dbService.saveMessage(false, data!.values.first, widget.metadata);
+    });*/
+  }
   
   void _sendMessage(){
     final msg = _textEditingController.text.trim();
     msg.isEmpty ? null : setState(() {
-      _llmService.sendMsgToModel(msg.trim());
+      _sendMessageIsolated(msg);
+      //FlutterBackgroundService().invoke('request', {'prompt': msg});
 
       _dbService.saveMessage(true, msg, widget.metadata);
 
@@ -66,11 +80,53 @@ class _ChatPageState extends State<ChatPage>{
     });
   }
 
-  void reciveMessage() async{
-    setState(() {
-      
-      _dbService.saveMessage(false, 'LLM responce', widget.metadata);
+  Future<void> _sendMessageIsolated(String text) async{
+    final ReceivePort receivePort = ReceivePort();
+    late SendPort isolatePort;
+    bool portReady = false;
+    bool isEOG = false;
+
+    await Isolate.spawn(isolatedWorker, receivePort.sendPort);
+
+    receivePort.listen((data){
+      if(data is SendPort){
+        isolatePort = data;
+        portReady = true;
+      }
+
+      if(data is Map<String, String> && data.containsKey('answer') || data.containsKey('error')){
+        if(data['answer']!.isNotEmpty){
+          _dbService.saveMessage(false, data['answer']!, widget.metadata);
+        }
+
+        if(data['error']!.isNotEmpty){
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(data['error']!))
+          );
+        }
+      }
+
+      if(data is String){
+        if(data == 'EOG'){
+          isEOG = true;
+        }
+      }
     });
+
+    while(!portReady){
+      await Future.delayed(const Duration(milliseconds: 10));
+    }
+
+    isolatePort.send({
+      'chatName': widget.metadata.chatName,
+      'docPath': widget.metadata.docPath,
+      'config': jsonEncode(configTable.config),
+      'prompt': text
+    });
+
+    if(isEOG){
+      receivePort.close();
+    }
   }
 
   @override
@@ -178,3 +234,45 @@ class _ChatPageState extends State<ChatPage>{
     );
   }
 }
+
+void isolatedWorker(SendPort sendPort) async{
+    final port = ReceivePort();
+    sendPort.send(port.sendPort);
+    LlmService? llm;
+
+    await for(final data in port){
+      if (data is Map<String, String> ){
+        if (data.containsKey('chatName') && data.containsKey('docPath') && data.containsKey('config')) {
+          llm = LlmService(
+            config: jsonDecode(data['config']!),
+            chatName: data['chatName']!,
+            docPath: data['docPath']!,
+          );
+        }
+
+        if (data.containsKey('prompt') && llm != null) {
+          try{
+            final res = await llm.sendMsgToModel(data['prompt']!);
+
+            final text = res?.output.content.trim() ?? '';
+            sendPort.send({'answer': text});
+          } catch(e){
+            sendPort.send({'error': 'Erro => $e'});
+          }
+
+          await Future.delayed(Duration(milliseconds: 10));
+          sendPort.send('EOG');
+          port.close();
+          Isolate.exit();
+        }
+      }
+
+      if(data is String){
+        if(data == 'close'){
+          sendPort.send('EOG');
+          port.close();
+          Isolate.exit();
+        }
+      }
+    }
+  }

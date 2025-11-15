@@ -10,9 +10,11 @@ class ConfigService {
 
   static final Map<String, dynamic> _cfgTemplate = {
     'theme': 'system',
-    'backend': 'openai',
+    'service': 'local',
     'openaikey': '',
-    'lanurl': ''
+    'geminikey': '',
+    'lanurl': '',
+    'modelpath': ''
   };
 
   Map<String, dynamic> get config => _configTable!;

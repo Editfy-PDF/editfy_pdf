@@ -7,7 +7,7 @@
 *.isar
 .buildlog/
 .history
-
+test/
 
 
 # Flutter repo-specific

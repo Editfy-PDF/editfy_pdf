@@ -34,27 +34,20 @@ class _HomePageState extends State<HomePage> {
   }
 
   void submitDocument(List<Chat>? chatList) async{
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf']
+      allowedExtensions: ['pdf'],
     );
-    
-    if(chatList != null){
-      if (result != null) {
-        if(!chatList.any((key)=> key.docPath == result.files.first.path!)){
-          _dbService.saveChat(
-            result.files.first.name,
-            result.files.first.path!
-          );
-        }
-      }
-    } else{
-      if(result != null){
-        _dbService.saveChat(
-          result.files.first.name,
-          result.files.first.path!
-        );
-      }
+
+    if (result == null) return;
+
+    final pickedFile = result.files.first;
+    final path = pickedFile.path!;
+    final name = pickedFile.name;
+
+    if (chatList == null || chatList.isEmpty || 
+        !chatList.any((chat) => chat.chatName == name)) {
+      _dbService.saveChat(name, path);
     }
   }
 
@@ -107,7 +100,7 @@ class _HomePageState extends State<HomePage> {
             itemCount: asyncSnapshot.data!.length,
             itemBuilder: (BuildContext context, int index){
               return ListTile( // Adicionar imagem do arquivo
-                leading: CircularProgressIndicator(),
+                leading: Icon(Icons.picture_as_pdf, color: Colors.red),
                 title: Text(asyncSnapshot.data![index].chatName),
                 trailing: IconButton(
                   icon: Icon(Icons.delete),

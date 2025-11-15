@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:editfy_pdf/main.dart';
 
 import 'package:provider/provider.dart';
-
-// adicionar integração com Gemini
+import 'package:file_picker/file_picker.dart';
 
 class ConfigPage extends StatefulWidget{
   const ConfigPage({super.key});
@@ -21,10 +20,14 @@ class _ConfigPageState extends State<ConfigPage> {
     final theme = Theme.of(context);
     final definitions = Provider.of<DefinitionsProvider>(context);
 
-    if(definitions.cfgService.config['backend'] == 'openai'){
+    if(definitions.cfgService.config['service'] == 'openai'){
       txtController.text = definitions.cfgService.config['openaikey'];
-    } else if(definitions.cfgService.config['backend'] == 'lan'){
+    } 
+    else if(definitions.cfgService.config['service'] == 'custom'){
       txtController.text = definitions.cfgService.config['lanurl'];
+    }
+    else if(definitions.cfgService.config['service'] == 'gemini'){
+      txtController.text = definitions.cfgService.config['geminikey'];
     }
 
     return Scaffold(
@@ -88,31 +91,51 @@ class _ConfigPageState extends State<ConfigPage> {
                         definitions.themeState == ThemeMode.system ? 'system' :
                         (definitions.themeState == ThemeMode.light ? 'light' : 'dark'),
                         style: TextStyle(color: theme.colorScheme.onSurface)
-                      ));
-                  }),
+                      )
+                    );
+                  }
+                ),
               ),
           
               Divider(),
           
               ListTile(
                 leading: Icon(Icons.account_tree_sharp),
-                title: Text('Backend'),
+                title: Text('Service'),
                 trailing: MenuAnchor(
                   menuChildren: [
                     MenuItemButton(
                       child: Text('OpenAI'),
                       onPressed: () {
                         setState(() {
-                          definitions.cfgService.modfyCfgTable('backend', 'openai');
+                          definitions.cfgService.modfyCfgTable('service', 'openai');
+                        });
+                      }
+                    ),
+
+                    MenuItemButton(
+                      child: Text('Gemini'),
+                      onPressed: () {
+                        setState(() {
+                          definitions.cfgService.modfyCfgTable('service', 'gemini');
                         });
                       }
                     ),
           
                     MenuItemButton(
-                      child: Text('Rede Local'),
+                      child: Text('Servidor Personalizado'),
                       onPressed: () {
                         setState(() {
-                          definitions.cfgService.modfyCfgTable('backend', 'lan');
+                          definitions.cfgService.modfyCfgTable('service', 'custom');
+                        });  
+                      }
+                    ),
+
+                    MenuItemButton(
+                      child: Text('Offline'),
+                      onPressed: () {
+                        setState(() {
+                          definitions.cfgService.modfyCfgTable('service', 'local');
                         });  
                       }
                     ),
@@ -129,7 +152,13 @@ class _ConfigPageState extends State<ConfigPage> {
                       },
           
                       child: Text(
-                        definitions.cfgService.config['backend'] == 'openai' ? 'OpenAI' : 'Rede Local',
+                        switch(definitions.cfgService.config['service']){
+                          'openai' => 'OpenAI',
+                          'gemini' => 'Gemini',
+                          'local' => 'Offline',
+                          _ => 'Servidor Personalizado'
+
+                        },
                         style: TextStyle(color: theme.colorScheme.onSurface)
                       ),
                     );
@@ -137,7 +166,7 @@ class _ConfigPageState extends State<ConfigPage> {
                 ),
               ),
 
-              if(definitions.cfgService.config['backend'] == 'openai')
+              if(definitions.cfgService.config['service'] == 'openai')
               Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: TextField(
@@ -150,7 +179,20 @@ class _ConfigPageState extends State<ConfigPage> {
                 ),
               ),
 
-              if(definitions.cfgService.config['backend'] == 'lan')
+              if(definitions.cfgService.config['service'] == 'gemini')
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: TextField(
+                  controller: txtController,
+                  maxLines: 1,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (txt) {
+                    definitions.cfgService.modfyCfgTable('geminikey', txt.trim());
+                  }
+                ),
+              ),
+
+              if(definitions.cfgService.config['service'] == 'custom')
               Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: TextField(
@@ -163,7 +205,44 @@ class _ConfigPageState extends State<ConfigPage> {
                   }
                 ),
               ),
-          
+
+              if(definitions.cfgService.config['service'] == 'local')
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(10.0),
+                    child: Text(definitions.cfgService.config['modelpath']),
+                  ),
+
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.folder_open),
+                    label: const Text('Carregar modelo'),
+                    onPressed: () async{
+                      final result = await FilePicker.platform.pickFiles(type: FileType.any);
+                      
+                      if(result == null || result.files.isEmpty){
+                        return;
+                      }
+
+                      final filePath = result.files.single.path;
+                      if(filePath == null || !filePath.endsWith('.gguf')){
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Arquivo inválido.')),
+                        );
+                        return;
+                      }
+                      
+                      setState(() => definitions.cfgService.modfyCfgTable('modelpath', filePath));
+                      
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Modelo carregado com sucesso.')),
+                      );
+                    }
+                  )
+                ]
+              ),
+
               Divider(),
               // Proxímo widget de configuração
             ]

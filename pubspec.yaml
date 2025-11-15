@@ -33,14 +33,21 @@ dependencies:
   file_picker: 10.2.0
   path_provider: ^2.1.5
   provider: 6.1.2
-  pdfrx: ^1.3.5
+  # pdfrx: ^1.3.5
   objectbox: ^4.3.0
   langchain: ^0.7.8
   langchain_openai: ^0.7.4
+  langchain_google: ^0.6.5+2
   objectbox_flutter_libs: any
+  #flutter_background_service: ^5.1.0
+  langchain_llamacpp:
+    git:
+      url: https://github.com/Editfy-PDF/langchain_llamacpp.git
+      ref: main
   pdfium_dart:
     git:
       url: https://github.com/Editfy-PDF/pdfium_dart.git
+      ref: main
 
 dev_dependencies:
   flutter_test:
