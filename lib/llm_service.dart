@@ -15,7 +15,7 @@ class LlmService {
   late  BaseChatModel model;
   final List<ChatMessage> chatMessages = [];
   late Chat? chat;
-  final pdfium = Pdfium();
+  final pdfium = Pdfium(null);
 
   LlmService({required this.config, this.chat, String chatName='', String docPath=''}){
     chat ??= Chat(chatName: chatName, docPath: docPath);
@@ -52,7 +52,7 @@ class LlmService {
       ChatMessage.system('Você é um assistente que responde de forma direta usando o conteúdo de documentos.')
     );
 
-    pdfium.openDoc(chat!.docPath);
+    pdfium.openDocument(chat!.docPath);
 
     final npages = pdfium.countPages();
     chatMessages.add(ChatMessage.system('Documento PDF: ${chat!.chatName}'));
