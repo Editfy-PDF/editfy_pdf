@@ -48,6 +48,8 @@ dependencies:
     git:
       url: https://github.com/Editfy-PDF/pdfium_dart.git
       ref: main
+  cryptography: ^2.7.0
+  flutter_secure_storage: ^9.2.4
 
 dev_dependencies:
   flutter_test:

@@ -6,10 +6,11 @@ import 'package:flutter/material.dart';
 
 import 'package:editfy_pdf/colections/chat.dart';
 import 'package:editfy_pdf/pages/doc_viewer.dart';
-import 'package:editfy_pdf/db_service.dart';
+import 'package:editfy_pdf/services/db_service.dart';
 //import 'package:editfy_pdf/background_service.dart';
-import 'package:editfy_pdf/llm_service.dart';
-import 'package:editfy_pdf/config_service.dart';
+import 'package:editfy_pdf/services/llm_service.dart';
+import 'package:editfy_pdf/services/config_service.dart';
+import 'package:flutter/services.dart';
 
 //import 'package:flutter_background_service/flutter_background_service.dart';
 
@@ -86,7 +87,13 @@ class _ChatPageState extends State<ChatPage>{
     bool portReady = false;
     bool isEOG = false;
 
-    await Isolate.spawn(isolatedWorker, receivePort.sendPort);
+    await Isolate.spawn(
+      isolatedWorker,
+      {
+        'port': receivePort.sendPort,
+        'token': RootIsolateToken.instance!
+      }
+    );
 
     receivePort.listen((data){
       if(data is SendPort){
@@ -94,15 +101,17 @@ class _ChatPageState extends State<ChatPage>{
         portReady = true;
       }
 
-      if(data is Map<String, String> && data.containsKey('answer') || data.containsKey('error')){
-        if(data['answer']!.isNotEmpty){
+      if(data is Map<String, String>){
+        if(data.containsKey('answer') && data['answer']!.isNotEmpty){
           _dbService.saveMessage(false, data['answer']!, widget.metadata);
         }
 
-        if(data['error']!.isNotEmpty){
+        if(data.containsKey('error') && data['error']!.isNotEmpty){
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(data['error']!))
           );
+          
+          // Remover ultimo texto do usuário depois do erro
         }
       }
 
@@ -235,44 +244,48 @@ class _ChatPageState extends State<ChatPage>{
   }
 }
 
-void isolatedWorker(SendPort sendPort) async{
-    final port = ReceivePort();
-    sendPort.send(port.sendPort);
-    LlmService? llm;
+void isolatedWorker(Map args) async{
+  final SendPort sendPort = args['port'];
+  final RootIsolateToken token = args['token'];
+  final port = ReceivePort();
+  sendPort.send(port.sendPort);
+  LlmService? llm;
 
-    await for(final data in port){
-      if (data is Map<String, String> ){
-        if (data.containsKey('chatName') && data.containsKey('docPath') && data.containsKey('config')) {
-          llm = LlmService(
-            config: jsonDecode(data['config']!),
-            chatName: data['chatName']!,
-            docPath: data['docPath']!,
-          );
-        }
+  BackgroundIsolateBinaryMessenger.ensureInitialized(token);
 
-        if (data.containsKey('prompt') && llm != null) {
-          try{
-            final res = await llm.sendMsgToModel(data['prompt']!);
-
-            final text = res?.output.content.trim() ?? '';
-            sendPort.send({'answer': text});
-          } catch(e){
-            sendPort.send({'error': 'Erro => $e'});
-          }
-
-          await Future.delayed(Duration(milliseconds: 10));
-          sendPort.send('EOG');
-          port.close();
-          Isolate.exit();
-        }
+  await for(final data in port){
+    if (data is Map<String, String> ){
+      if (data.containsKey('chatName') && data.containsKey('docPath') && data.containsKey('config')) {
+        llm = LlmService(
+          config: jsonDecode(data['config']!),
+          chatName: data['chatName']!,
+          docPath: data['docPath']!,
+        );
       }
 
-      if(data is String){
-        if(data == 'close'){
-          sendPort.send('EOG');
-          port.close();
-          Isolate.exit();
+      if (data.containsKey('prompt') && llm != null) {
+        try{
+          final res = await llm.sendMsgToModel(data['prompt']!);
+
+          final text = res?.output.content.trim() ?? '';
+          sendPort.send({'answer': text});
+        } catch(e){
+          sendPort.send({'error': 'Erro => $e'});
         }
+
+        await Future.delayed(Duration(milliseconds: 10));
+        sendPort.send('EOG');
+        port.close();
+        Isolate.exit();
+      }
+    }
+
+    if(data is String){
+      if(data == 'close'){
+        sendPort.send('EOG');
+        port.close();
+        Isolate.exit();
       }
     }
   }
+}

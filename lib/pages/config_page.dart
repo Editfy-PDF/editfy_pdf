@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:editfy_pdf/main.dart';
+import 'package:editfy_pdf/services/crypto_service.dart';
 
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
@@ -173,8 +174,12 @@ class _ConfigPageState extends State<ConfigPage> {
                   controller: txtController,
                   maxLines: 1,
                   textInputAction: TextInputAction.done,
-                  onSubmitted: (txt) {
-                    definitions.cfgService.modfyCfgTable('openaikey', txt.trim());
+                  obscureText: true,
+                  obscuringCharacter: '*',
+                  onSubmitted: (txt) async{
+                    final crypted = await encryptAES(txt);
+                    definitions.cfgService.modfyCfgTable('openaikey', crypted.trim());
+                    setState((){});
                   }
                 ),
               ),
@@ -186,8 +191,12 @@ class _ConfigPageState extends State<ConfigPage> {
                   controller: txtController,
                   maxLines: 1,
                   textInputAction: TextInputAction.done,
-                  onSubmitted: (txt) {
-                    definitions.cfgService.modfyCfgTable('geminikey', txt.trim());
+                  obscureText: true,
+                  obscuringCharacter: '*',
+                  onSubmitted: (txt) async{
+                    final crypted = await encryptAES(txt);
+                    definitions.cfgService.modfyCfgTable('geminikey', crypted.trim());
+                    setState(() {});
                   }
                 ),
               ),

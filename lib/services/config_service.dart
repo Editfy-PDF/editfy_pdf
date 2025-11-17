@@ -21,6 +21,7 @@ class ConfigService {
 
   ConfigService._internal(){
     _configTable = _cfgTemplate;
+
     readFromFile();
   }
 
@@ -30,6 +31,7 @@ class ConfigService {
 
   void modfyCfgTable(String key, dynamic value){
     _configTable![key] = value;
+
     saveToFile();
   }
     
