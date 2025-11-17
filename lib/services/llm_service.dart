@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:editfy_pdf/colections/chat.dart';
+import 'package:editfy_pdf/services/crypto_service.dart';
 
 import 'package:pdfium_dart/pdfium_dart.dart';
 
@@ -23,30 +24,8 @@ class LlmService {
       throw Exception('O caminho de docPath (${chat!.docPath}) não existe!');
     }
 
-    if(config['service'] == 'openai'){
-      model = ChatOpenAI(apiKey: config['openaikey']);
-    }
-
-    if(config['service'] == 'gemini'){
-      model = ChatGoogleGenerativeAI(apiKey: config['geminikey']);
-    }
-
-    else if(config['service'] == 'custom'){
-      model = ChatOpenAI(baseUrl: '${config['lanurl']!}/v1');
-    }
-
-    else if(config['service'] == 'local'){
-      if(!File(config['modelpath']!).existsSync()){
-        throw Exception('O caminho de modelpath (${config['modelpath']}) não existe!');
-      }
-      
-      final options = ChatLlamaOptions(
-        model: config['modelpath'],
-        numCtx: 0
-      );
-
-      model = ChatLlamacpp(modelPath: config['modelpath'], defaultOptions: options);
-    }
+    //_startModel();
+    //Future.delayed(Duration(seconds: 20));
 
     chatMessages.add(
       ChatMessage.system('Você é um assistente que responde de forma direta usando o conteúdo de documentos.')
@@ -57,6 +36,7 @@ class LlmService {
     final npages = pdfium.countPages();
     chatMessages.add(ChatMessage.system('Documento PDF: ${chat!.chatName}'));
 
+    // Adicionar algoritmo de busca em páginas PDF (otimização de contexto)
     if(npages > 1){
       for(int i=0; i < npages; i++){
         chatMessages.add(
@@ -79,15 +59,44 @@ class LlmService {
     model.close();
   }
 
+  Future<void> _startModel() async{
+    if(config['service'] == 'openai'){
+      model = ChatOpenAI(apiKey: await decryptAES(config['openaikey']));
+    }
+
+    if(config['service'] == 'gemini') {
+      model = ChatGoogleGenerativeAI(apiKey: await decryptAES(config['geminikey']));
+    }
+
+    else if(config['service'] == 'custom'){
+      model = ChatOpenAI(baseUrl: '${config['lanurl']!}/v1');
+    }
+
+    else if(config['service'] == 'local'){
+      if(!File(config['modelpath']!).existsSync()){
+        throw Exception('O caminho do modelo (${config['modelpath']}) não existe!');
+      }
+      
+      final options = ChatLlamaOptions(
+        model: config['modelpath'],
+        numCtx: 0
+      );
+
+      model = ChatLlamacpp(modelPath: config['modelpath'], defaultOptions: options);
+    }
+  }
+
   Future<ChatResult?> sendMsgToModel(String text) async{
     try{
+      await _startModel();
+
       chatMessages.add(ChatMessage.humanText(text));
 
       final resp = await model.invoke(PromptValue.chat(chatMessages));
 
       return resp;
     } catch(e) {
-      throw Exception(e);
+      rethrow;
     }
   }
 }

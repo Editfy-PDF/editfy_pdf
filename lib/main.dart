@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'package:editfy_pdf/db_service.dart';
+import 'package:editfy_pdf/services/db_service.dart';
 import 'package:editfy_pdf/pages/home_page.dart';
-import 'package:editfy_pdf/config_service.dart';
+import 'package:editfy_pdf/services/config_service.dart';
 //import 'package:editfy_pdf/background_service.dart';
 
 import 'package:provider/provider.dart';

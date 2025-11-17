@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:editfy_pdf/pages/config_page.dart';
 import 'package:editfy_pdf/pages/chat_page.dart';
-import 'package:editfy_pdf/db_service.dart';
+import 'package:editfy_pdf/services/db_service.dart';
 import 'package:editfy_pdf/colections/chat.dart';
 
 import 'package:pdfium_dart/pdfium_dart.dart';
@@ -127,28 +127,36 @@ class _HomePageState extends State<HomePage> {
             itemCount: datalen,
             itemBuilder: (BuildContext context, int index){
               final chat = asyncSnapshot.data![index];
-              return ListTile(
-                leading: _thumbCache.keys.contains(chat.id)
-                  ? Image.memory(
-                      _thumbCache[chat.id]!,
-                      width: 80,
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 5),
+                child: ListTile(
+                  leading: _thumbCache.keys.contains(chat.id)
+                    ? Container(
+                      width: 40,
                       height: 100,
-                      fit: BoxFit.contain,
+                      color: Colors.grey.shade300,
+                      child: Image.memory(
+                        _thumbCache[chat.id]!,
+                        width: 80,
+                        height: 100,
+                        fit: BoxFit.contain,
+                      ),
                     )
-                  : Icon(Icons.picture_as_pdf, color: Colors.red),
-                title: Text(chat.chatName),
-                trailing: IconButton(
-                  icon: Icon(Icons.delete),
-                  onPressed: () {
-                    _dbService.deleteChat(chat.chatName);
-                    _thumbCache.remove(chat.id);
-                  },
+                    : const Icon(Icons.picture_as_pdf, color: Colors.red),
+                  title: Text(chat.chatName),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete),
+                    onPressed: () {
+                      _dbService.deleteChat(chat.chatName);
+                      _thumbCache.remove(chat.id);
+                    },
+                  ),
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context){
+                      return ChatPage(metadata: chat);
+                    }));
+                  }
                 ),
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context){
-                    return ChatPage(metadata: chat);
-                  }));
-                }
               );
             },
           );
