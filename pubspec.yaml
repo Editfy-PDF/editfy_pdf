@@ -38,6 +38,7 @@ dependencies:
   langchain: ^0.7.8
   langchain_openai: ^0.7.4
   langchain_google: ^0.6.5+2
+  langchain_tiktoken: ^1.0.1
   objectbox_flutter_libs: any
   #flutter_background_service: ^5.1.0
   langchain_llamacpp:
