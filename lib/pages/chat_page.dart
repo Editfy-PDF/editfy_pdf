@@ -28,9 +28,11 @@ class _ChatPageState extends State<ChatPage>{
   final StreamController _streamController = StreamController.broadcast();
   final DbService _dbService = DbService();
   final ConfigService configTable = ConfigService();
+  SendPort? _isolatePort;
   StreamSubscription? _sub;
 
   bool _isBtnEnabled = false;
+  bool _isProcessing = false;
 
   @override
   void initState(){
@@ -64,12 +66,20 @@ class _ChatPageState extends State<ChatPage>{
   }
   
   void _sendMessage(){
+    if(_isProcessing){
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Uma requisição Já está sendo processada"))
+      );
+      return;
+    }
+
     final msg = _textEditingController.text.trim();
     msg.isEmpty ? null : setState(() {
       _sendMessageIsolated(msg);
       //FlutterBackgroundService().invoke('request', {'prompt': msg});
 
       _dbService.saveMessage(true, msg, widget.metadata);
+      _isProcessing = true;
 
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
@@ -83,7 +93,6 @@ class _ChatPageState extends State<ChatPage>{
 
   Future<void> _sendMessageIsolated(String text) async{
     final ReceivePort receivePort = ReceivePort();
-    late SendPort isolatePort;
     bool portReady = false;
     bool isEOG = false;
 
@@ -97,7 +106,7 @@ class _ChatPageState extends State<ChatPage>{
 
     receivePort.listen((data){
       if(data is SendPort){
-        isolatePort = data;
+        _isolatePort = data;
         portReady = true;
       }
 
@@ -118,6 +127,16 @@ class _ChatPageState extends State<ChatPage>{
       if(data is String){
         if(data == 'EOG'){
           isEOG = true;
+          setState(() {
+            _isProcessing = false;
+          });
+        }
+
+        if(data == 'SOG'){
+          isEOG = true;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Inferência cancelada'))
+          );
         }
       }
     });
@@ -126,7 +145,7 @@ class _ChatPageState extends State<ChatPage>{
       await Future.delayed(const Duration(milliseconds: 10));
     }
 
-    isolatePort.send({
+    _isolatePort!.send({
       'chatName': widget.metadata.chatName,
       'docPath': widget.metadata.docPath,
       'config': jsonEncode(configTable.config),
@@ -230,8 +249,18 @@ class _ChatPageState extends State<ChatPage>{
                     ),
                   ),
 
-                  IconButton(
-                    icon: Icon(Icons.send),
+                  _isProcessing
+                  ? IconButton(
+                    icon: const Icon(Icons.stop),
+                    onPressed: (){
+                      setState(() {
+                        _isolatePort!.send('close');
+                        _isProcessing = false;
+                      });
+                    }
+                  )
+                  : IconButton(
+                    icon: const Icon(Icons.send),
                     onPressed: _isBtnEnabled ? _sendMessage : null
                   )
                 ],
@@ -265,28 +294,27 @@ void isolatedWorker(Map args) async{
 
       if (data.containsKey('prompt') && llm != null) {
         try{
-          final res = await llm.sendMsgToModel(data['prompt']!);
+          llm.sendMsgToModel(data['prompt']!).then((res) async{
+            final text = res?.output.content.trim() ?? '';
+            sendPort.send({'answer': text});
 
-          final text = res?.output.content.trim() ?? '';
-          sendPort.send({'answer': text});
-          
-          llm.dispose();
+            llm!.dispose();
+
+            await Future.delayed(Duration(milliseconds: 10));
+            sendPort.send('EOG');
+            port.close();
+            Isolate.exit();
+          });
         } catch(e){
           sendPort.send({'error': 'Erro => $e'});
         }
-
-        await Future.delayed(Duration(milliseconds: 10));
-        sendPort.send('EOG');
-        port.close();
-        Isolate.exit();
       }
     }
 
     if(data is String){
       if(data == 'close'){
-        sendPort.send('EOG');
-        port.close();
-        Isolate.exit();
+        llm!.stopGeneration();
+        sendPort.send('SOG');
       }
     }
   }

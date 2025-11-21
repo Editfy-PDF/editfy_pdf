@@ -123,6 +123,12 @@ class LlmService {
     }
   }
 
+  void stopGeneration(){
+    if(model is ChatLlamacpp){
+      (model as ChatLlamacpp).stop();
+    }
+  }
+
   Future<ChatResult?> sendMsgToModel(String text) async{
     try{
       openDoc(text);
