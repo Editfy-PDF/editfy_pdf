@@ -269,6 +269,8 @@ void isolatedWorker(Map args) async{
 
           final text = res?.output.content.trim() ?? '';
           sendPort.send({'answer': text});
+          
+          llm.dispose();
         } catch(e){
           sendPort.send({'error': 'Erro => $e'});
         }

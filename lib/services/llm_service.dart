@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:editfy_pdf/colections/chat.dart';
 import 'package:editfy_pdf/services/crypto_service.dart';
+import 'package:editfy_pdf/services/prefill_service.dart';
 
 import 'package:pdfium_dart/pdfium_dart.dart';
 
@@ -30,29 +32,6 @@ class LlmService {
     chatMessages.add(
       ChatMessage.system('Você é um assistente que responde de forma direta usando o conteúdo de documentos.')
     );
-
-    pdfium.openDocument(chat!.docPath);
-
-    final npages = pdfium.countPages();
-    chatMessages.add(ChatMessage.system('Documento PDF: ${chat!.chatName}'));
-
-    // Adicionar algoritmo de busca em páginas PDF (otimização de contexto)
-    if(npages > 1){
-      for(int i=0; i < npages; i++){
-        chatMessages.add(
-          ChatMessage.system(
-            'Página ${i + 1}\n${pdfium.getText(i)}'
-          )
-        );
-      }
-
-      chatMessages.add(ChatMessage.system('Fim do documento\n'));
-    } else{
-      chatMessages.addAll([
-        ChatMessage.system(pdfium.getText(0)),
-        ChatMessage.system('Fim do documento\n')
-      ]);
-    }
   }
 
   void dispose(){
@@ -86,8 +65,68 @@ class LlmService {
     }
   }
 
+  void openDoc(String prompt){
+    final analizer = PageAnalist();
+    List<String> extractedTextPerPage = [];
+
+    pdfium.openDocument(chat!.docPath);
+    final npages = pdfium.countPages();
+
+    chatMessages.add(ChatMessage.system('Documento PDF: ${chat!.chatName}'));
+
+    if(npages > 1){
+      for(int i=0; i < npages; i++){
+        extractedTextPerPage.add(pdfium.getText(i));
+      }
+
+      final pageRank = analizer.chunksScore(
+        List.generate(
+          extractedTextPerPage.length,
+          (int i) => analizer.tokenize(extractedTextPerPage[i])
+        ),
+        analizer.tokenize(prompt)
+      );
+
+      final List<Uint32List> chunk = [];
+
+      for(final i in pageRank.length <= 5 ? pageRank : pageRank.getRange(0, 4)){
+        final extracted = extractedTextPerPage[i.$1]
+        .trim()
+        .replaceAll('\r', '')
+        .replaceAll('\t', '  ')
+        .split('  ');
+
+        for(final txt in extracted){
+          chunk.add(analizer.tokenize(txt));
+        }
+      }
+
+      final chunkRank = analizer.chunksScore(
+        chunk,
+        analizer.tokenize(prompt)
+      );
+
+      for(final i in chunkRank.length <= 5 ? chunkRank : chunkRank.getRange(0, 4)){
+        chatMessages.add(
+          ChatMessage.system(
+            pdfium.getText(i.$1)
+          )
+        );
+      }
+
+      chatMessages.add(ChatMessage.system('Fim do documento\n'));
+    } else{
+      chatMessages.addAll([
+        ChatMessage.system(pdfium.getText(0)),
+        ChatMessage.system('Fim do documento\n')
+      ]);
+    }
+  }
+
   Future<ChatResult?> sendMsgToModel(String text) async{
     try{
+      openDoc(text);
+
       await _startModel();
 
       chatMessages.add(ChatMessage.humanText(text));
