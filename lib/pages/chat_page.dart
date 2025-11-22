@@ -1,12 +1,19 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:isolate';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import 'package:editfy_pdf/colections/chat.dart';
 import 'package:editfy_pdf/pages/doc_viewer.dart';
-import 'package:editfy_pdf/db_service.dart';
-import 'package:editfy_pdf/llm_service.dart';
+import 'package:editfy_pdf/services/db_service.dart';
+//import 'package:editfy_pdf/background_service.dart';
+import 'package:editfy_pdf/services/llm_service.dart';
+import 'package:editfy_pdf/services/config_service.dart';
+import 'package:flutter/services.dart';
 
-// Adicionar parser de PDF (com LangChain.dart)
+//import 'package:flutter_background_service/flutter_background_service.dart';
 
 class ChatPage extends StatefulWidget{
   final Chat metadata;
@@ -19,19 +26,21 @@ class ChatPage extends StatefulWidget{
 class _ChatPageState extends State<ChatPage>{
   final TextEditingController _textEditingController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final StreamController _streamController = StreamController();
+  final StreamController _streamController = StreamController.broadcast();
   final DbService _dbService = DbService();
-  late LlmService _llmService;
+  final ConfigService configTable = ConfigService();
+  SendPort? _isolatePort;
+  StreamSubscription? _sub;
 
-  bool _isBtnEnabled = false;
+  bool _hasPrompt = false;
+  bool _isProcessing = false;
 
   @override
   void initState(){
     super.initState();
-    _llmService = LlmService(widget.metadata);
     _textEditingController.addListener(_onPromptChange);
     _streamController.addStream(_dbService.listenToMessage(widget.metadata));
-    _llmService.syncMessages();
+    _reciveMessage();
   }
 
   @override
@@ -39,22 +48,39 @@ class _ChatPageState extends State<ChatPage>{
     _textEditingController.removeListener(_onPromptChange);
     _textEditingController.dispose();
     _streamController.close();
-    //_llmService.dispose(); quebra o app ao sair da tela de chat
+    _sub?.cancel();
     super.dispose();
   }
 
   void _onPromptChange(){
     setState((){
-    _isBtnEnabled = _textEditingController.text.trim().isNotEmpty;
+    _hasPrompt = _textEditingController.text.trim().isNotEmpty;
     });
+  }
+
+  void _reciveMessage(){
+    _sub?.cancel();
+    /*_sub = FlutterBackgroundService().on('return').listen((data){
+      if(data != null && data.values.first is String && data.values.first != ''){}
+      _dbService.saveMessage(false, data!.values.first, widget.metadata);
+    });*/
   }
   
   void _sendMessage(){
+    if(_isProcessing){
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Uma requisição Já está sendo processada"))
+      );
+      return;
+    }
+
     final msg = _textEditingController.text.trim();
     msg.isEmpty ? null : setState(() {
-      _llmService.sendMsgToModel(msg.trim());
+      _sendMessageIsolated(msg);
+      //FlutterBackgroundService().invoke('request', {'prompt': msg});
 
       _dbService.saveMessage(true, msg, widget.metadata);
+      _isProcessing = true;
 
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
@@ -66,16 +92,92 @@ class _ChatPageState extends State<ChatPage>{
     });
   }
 
-  void reciveMessage() async{
-    setState(() {
-      
-      _dbService.saveMessage(false, 'LLM responce', widget.metadata);
+  Future<void> _sendMessageIsolated(String text) async{
+    final ReceivePort receivePort = ReceivePort();
+    bool portReady = false;
+    bool isEOG = false;
+
+    await Isolate.spawn(
+      isolatedWorker,
+      {
+        'port': receivePort.sendPort,
+        'token': RootIsolateToken.instance!
+      }
+    );
+
+    receivePort.listen((data){
+      if(data is SendPort){
+        _isolatePort = data;
+        portReady = true;
+      }
+
+      if(data is Map<String, String>){
+        if(data.containsKey('answer') && data['answer']!.isNotEmpty){
+          _dbService.saveMessage(false, data['answer']!, widget.metadata);
+        }
+
+        if(data.containsKey('error') && data['error']!.isNotEmpty){
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text("Erro"),
+                content: Text(data['error']!),
+                scrollable: true,
+                actions: [
+                  TextButton(
+                    style: ButtonStyle(),
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text("OK"),
+                  ),
+                ],
+              );
+            },
+          );
+
+          setState(() {
+            _isProcessing = false;
+          });
+        }
+      }
+
+      if(data is String){
+        if(data == 'EOG'){
+          isEOG = true;
+          setState(() {
+            _isProcessing = false;
+          });
+        }
+
+        if(data == 'SOG'){
+          isEOG = true;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Inferência cancelada'))
+          );
+        }
+      }
     });
+
+    while(!portReady){
+      await Future.delayed(const Duration(milliseconds: 10));
+    }
+
+    _isolatePort!.send({
+      'chatName': widget.metadata.chatName,
+      'docPath': widget.metadata.docPath,
+      'config': jsonEncode(configTable.config),
+      'prompt': text
+    });
+
+    if(isEOG){
+      receivePort.close();
+    }
   }
 
   @override
   Widget build(BuildContext context){
     final theme = Theme.of(context);
+    final hasDoc = File(widget.metadata.docPath).path.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -114,6 +216,26 @@ class _ChatPageState extends State<ChatPage>{
                 if(!asyncSnapshot.hasData){
                   return const Center(child: CircularProgressIndicator());
                 }
+
+                if(!hasDoc){
+                  showDialog(
+                    context: context,
+                    builder: (context) {
+                      return AlertDialog(
+                        title: const Text("Aviso"),
+                        content: Text('O documento não pode ser encontrado!'),
+                        scrollable: true,
+                        actions: [
+                          TextButton(
+                            style: ButtonStyle(),
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text("OK"),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                }
                 
                 return ListView.builder(
                   padding: const EdgeInsets.all(12),
@@ -131,10 +253,15 @@ class _ChatPageState extends State<ChatPage>{
                         margin: const EdgeInsets.symmetric(vertical: 4),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
-                          color: message.isUser ? theme.colorScheme.primary : theme.colorScheme.surface,
+                          color: message.isUser ? theme.colorScheme.secondary : theme.colorScheme.surface,
                         ),
                         child: Text(
                           message.content!.trim(),
+                          style: TextStyle(
+                            color: message.isUser
+                            ? theme.colorScheme.onPrimary
+                            : theme.colorScheme.onSurface
+                          )
                         )
                       )
                     );
@@ -165,9 +292,19 @@ class _ChatPageState extends State<ChatPage>{
                     ),
                   ),
 
-                  IconButton(
-                    icon: Icon(Icons.send),
-                    onPressed: _isBtnEnabled ? _sendMessage : null
+                  _isProcessing
+                  ? IconButton(
+                    icon: const Icon(Icons.stop),
+                    onPressed: (){
+                      setState(() {
+                        _isolatePort!.send('close');
+                        _isProcessing = false;
+                      });
+                    }
+                  )
+                  : IconButton(
+                    icon: const Icon(Icons.send),
+                    onPressed: _hasPrompt && hasDoc ? _sendMessage : null
                   )
                 ],
               ),
@@ -176,5 +313,54 @@ class _ChatPageState extends State<ChatPage>{
         ]
       )
     );
+  }
+}
+
+void isolatedWorker(Map args) async{
+  final SendPort sendPort = args['port'];
+  final RootIsolateToken token = args['token'];
+  final port = ReceivePort();
+  sendPort.send(port.sendPort);
+  LlmService? llm;
+
+  BackgroundIsolateBinaryMessenger.ensureInitialized(token);
+
+  await for(final data in port){
+    if (data is Map<String, String> ){
+      if (data.containsKey('chatName') && data.containsKey('docPath') && data.containsKey('config')) {
+        llm = LlmService(
+          config: jsonDecode(data['config']!),
+          chatName: data['chatName']!,
+          docPath: data['docPath']!,
+        );
+      }
+
+      if (data.containsKey('prompt') && llm != null) {
+        llm.sendMsgToModel(data['prompt']!).then((res) async{
+          final text = res?.output.content.trim() ?? '';
+          sendPort.send({'answer': text});
+
+          llm!.dispose();
+
+          await Future.delayed(Duration(milliseconds: 10));
+          sendPort.send('EOG');
+          port.close();
+          Isolate.exit();
+        },
+        onError: (e){
+          llm!.dispose();
+          sendPort.send({'error': 'Erro => $e'});
+          port.close();
+          Isolate.exit();
+        });
+      }
+    }
+
+    if(data is String){
+      if(data == 'close'){
+        llm!.stopGeneration();
+        sendPort.send('SOG');
+      }
+    }
   }
 }

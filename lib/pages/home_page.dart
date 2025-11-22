@@ -1,12 +1,16 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import 'package:editfy_pdf/pages/config_page.dart';
 import 'package:editfy_pdf/pages/chat_page.dart';
-import 'package:editfy_pdf/db_service.dart';
+import 'package:editfy_pdf/services/db_service.dart';
 import 'package:editfy_pdf/colections/chat.dart';
 
+import 'package:pdfium_dart/pdfium_dart.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image/image.dart' as img;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,6 +23,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final DbService _dbService = DbService();
   final StreamController _streamController = StreamController.broadcast();
+  final Map<int, Uint8List?> _thumbCache = {};
 
   @override
   void initState(){
@@ -33,28 +38,35 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  Uint8List? renderThumb(String path){
+    final pdfium = Pdfium(null);
+    final res = pdfium.openDocument(path);
+    if(res != 0) throw Exception('Erro ao abrir documento -> ${pdfium.getLastError()}');
+
+    final rawData = pdfium.renderPage(0, 400, 600);
+    if(rawData == null) throw Exception('Erro ao renderizar thumbnail');
+
+    final rawImage = img.Image.fromBytes(width: 400, height: 600, bytes: rawData.buffer);
+    if(!rawImage.isValid) throw Exception('Erro ao converter thumbnail');
+
+    return img.encodePng(rawImage);
+  }
+
   void submitDocument(List<Chat>? chatList) async{
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf']
+      allowedExtensions: ['pdf'],
     );
-    
-    if(chatList != null){
-      if (result != null) {
-        if(!chatList.any((key)=> key.docPath == result.files.first.path!)){
-          _dbService.saveChat(
-            result.files.first.name,
-            result.files.first.path!
-          );
-        }
-      }
-    } else{
-      if(result != null){
-        _dbService.saveChat(
-          result.files.first.name,
-          result.files.first.path!
-        );
-      }
+
+    if (result == null) return;
+
+    final pickedFile = result.files.first;
+    final path = pickedFile.path!;
+    final name = pickedFile.name;
+
+    if (chatList == null || chatList.isEmpty || 
+        !chatList.any((chat) => chat.chatName == name)) {
+      _dbService.saveChat(name, path);
     }
   }
 
@@ -102,28 +114,67 @@ class _HomePageState extends State<HomePage> {
               child: const Text('Nenhum documento foi selecionado')
             );
           }
+
+          final datalen = asyncSnapshot.data!.length;
+          if(datalen > _thumbCache.keys.length){
+            for(var i=0; i < datalen; i++){
+              if(!_thumbCache.keys.contains(asyncSnapshot.data![i].id)){
+                _thumbCache[asyncSnapshot.data![i].id] = renderThumb(asyncSnapshot.data![i].docPath);
+              }
+            }
+          }
           
           return ListView.builder(
-            itemCount: asyncSnapshot.data!.length,
+            itemCount: datalen,
             itemBuilder: (BuildContext context, int index){
-              return ListTile( // Adicionar imagem do arquivo
-                leading: const Icon(
-                Icons.picture_as_pdf,
-                color: Colors.redAccent,
-                size: 40, 
+              final chat = asyncSnapshot.data![index];
+              final hasDoc = File(chat.docPath).path.isNotEmpty;
+              return Padding(
+                padding: const EdgeInsets.all(5),
+                child: Card(
+                  elevation: 3,
+                  color: theme.colorScheme.secondary,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: ListTile(
+                      iconColor: theme.colorScheme.onSecondary,
+                      textColor: theme.colorScheme.onSecondary,
+                      leading: _thumbCache.keys.contains(chat.id)
+                        ? Container(
+                          width: 40,
+                          height: 200,
+                          color: Colors.grey.shade500,
+                          child: Padding(
+                            padding: const EdgeInsets.all(0.5),
+                            child: Image.memory(
+                              _thumbCache[chat.id]!,
+                              width: 80,
+                              height: 100,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        )
+                        : const Icon(Icons.picture_as_pdf, color: Colors.red),
+                      title: Text(chat.chatName),
+                      subtitle: Text(
+                        hasDoc ? '' : 'Não foi possível encontrar o documento',
+                        style: TextStyle(color: theme.colorScheme.onError)
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete),
+                        onPressed: () {
+                          _dbService.deleteChat(chat.chatName);
+                          _thumbCache.remove(chat.id);
+                        },
+                      ),
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context){
+                          return ChatPage(metadata: chat);
+                        }));
+                      }
+                    ),
+                  ),
                 ),
-                title: Text(asyncSnapshot.data![index].chatName),
-                trailing: IconButton(
-                  icon: Icon(Icons.delete),
-                  onPressed: () {
-                    _dbService.deleteChat(asyncSnapshot.data![index].chatName);
-                  },
-                ),
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context){
-                    return ChatPage(metadata: asyncSnapshot.data![index]);
-                  }));
-                }
               );
             },
           );

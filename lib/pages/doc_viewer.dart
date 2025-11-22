@@ -1,8 +1,8 @@
-//import 'package:editfy_pdf/main.dart';
+import 'dart:io';
+
 import 'package:editfy_pdf/colections/chat.dart';
 import 'package:flutter/material.dart';
-
-//import 'package:pdfrx/pdfrx.dart';
+//import 'package:pdfium_dart/pdfium_dart.dart';
 
 class DocViewer extends StatefulWidget {
   final Chat metadata;
@@ -16,6 +16,7 @@ class _DocViewerState extends State<DocViewer> {
   @override
   Widget build(BuildContext context){
     final theme = Theme.of(context);
+    final hasDoc = File(widget.metadata.docPath).path.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -27,12 +28,7 @@ class _DocViewerState extends State<DocViewer> {
 
       body: InteractiveViewer(
         panEnabled: true,
-        child: Placeholder(), /*PdfViewer.asset(
-          widget.metadata.docPath,
-          params: PdfViewerParams(
-            enableTextSelection: true,
-          ),
-        ),*/
+        child: hasDoc ? PdfView(path: widget.metadata.docPath) : Placeholder()
       )
     );
   }
