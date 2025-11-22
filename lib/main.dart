@@ -66,7 +66,7 @@ class EditfyPDF extends StatelessWidget {
       secondary: const Color.fromARGB(255, 83, 81, 221),  // Usado para botões flutuantes, ícones
       onSecondary: Colors.white,                          // Cor sobre o botão/flutuante
       error: Colors.red,
-      onError: Colors.white,                              // Texto sobre o vermelho
+      onError: Colors.yellow,                              // Texto sobre o vermelho
       surface: const Color(0xFFD6D6D6),                   // Cor de fundo da tela
       onSurface: Colors.black,                            // Texto sobre o fundo
     );
@@ -77,7 +77,7 @@ class EditfyPDF extends StatelessWidget {
       secondary: const Color.fromARGB(255, 65, 64, 148),
       onSecondary: Colors.white,
       error: Colors.red.shade400,
-      onError: Colors.white,
+      onError: Colors.yellow,
       surface: const Color(0xFF1E1E1E),
       onSurface: Colors.white,
     );

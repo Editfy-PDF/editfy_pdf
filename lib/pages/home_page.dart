@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
@@ -127,6 +128,7 @@ class _HomePageState extends State<HomePage> {
             itemCount: datalen,
             itemBuilder: (BuildContext context, int index){
               final chat = asyncSnapshot.data![index];
+              final hasDoc = File(chat.docPath).path.isNotEmpty;
               return Padding(
                 padding: const EdgeInsets.all(5),
                 child: Card(
@@ -154,6 +156,10 @@ class _HomePageState extends State<HomePage> {
                         )
                         : const Icon(Icons.picture_as_pdf, color: Colors.red),
                       title: Text(chat.chatName),
+                      subtitle: Text(
+                        hasDoc ? '' : 'Não foi possível encontrar o documento',
+                        style: TextStyle(color: theme.colorScheme.onError)
+                      ),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete),
                         onPressed: () {

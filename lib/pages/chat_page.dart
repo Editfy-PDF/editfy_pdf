@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:convert';
 
@@ -31,7 +32,7 @@ class _ChatPageState extends State<ChatPage>{
   SendPort? _isolatePort;
   StreamSubscription? _sub;
 
-  bool _isBtnEnabled = false;
+  bool _hasPrompt = false;
   bool _isProcessing = false;
 
   @override
@@ -53,7 +54,7 @@ class _ChatPageState extends State<ChatPage>{
 
   void _onPromptChange(){
     setState((){
-    _isBtnEnabled = _textEditingController.text.trim().isNotEmpty;
+    _hasPrompt = _textEditingController.text.trim().isNotEmpty;
     });
   }
 
@@ -176,6 +177,7 @@ class _ChatPageState extends State<ChatPage>{
   @override
   Widget build(BuildContext context){
     final theme = Theme.of(context);
+    final hasDoc = File(widget.metadata.docPath).path.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -213,6 +215,26 @@ class _ChatPageState extends State<ChatPage>{
               builder: (context, asyncSnapshot) {
                 if(!asyncSnapshot.hasData){
                   return const Center(child: CircularProgressIndicator());
+                }
+
+                if(!hasDoc){
+                  showDialog(
+                    context: context,
+                    builder: (context) {
+                      return AlertDialog(
+                        title: const Text("Aviso"),
+                        content: Text('O documento não pode ser encontrado!'),
+                        scrollable: true,
+                        actions: [
+                          TextButton(
+                            style: ButtonStyle(),
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text("OK"),
+                          ),
+                        ],
+                      );
+                    },
+                  );
                 }
                 
                 return ListView.builder(
@@ -282,7 +304,7 @@ class _ChatPageState extends State<ChatPage>{
                   )
                   : IconButton(
                     icon: const Icon(Icons.send),
-                    onPressed: _isBtnEnabled ? _sendMessage : null
+                    onPressed: _hasPrompt && hasDoc ? _sendMessage : null
                   )
                 ],
               ),
