@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:convert';
 
@@ -31,7 +32,7 @@ class _ChatPageState extends State<ChatPage>{
   SendPort? _isolatePort;
   StreamSubscription? _sub;
 
-  bool _isBtnEnabled = false;
+  bool _hasPrompt = false;
   bool _isProcessing = false;
 
   @override
@@ -53,7 +54,7 @@ class _ChatPageState extends State<ChatPage>{
 
   void _onPromptChange(){
     setState((){
-    _isBtnEnabled = _textEditingController.text.trim().isNotEmpty;
+    _hasPrompt = _textEditingController.text.trim().isNotEmpty;
     });
   }
 
@@ -116,11 +117,27 @@ class _ChatPageState extends State<ChatPage>{
         }
 
         if(data.containsKey('error') && data['error']!.isNotEmpty){
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(data['error']!))
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text("Erro"),
+                content: Text(data['error']!),
+                scrollable: true,
+                actions: [
+                  TextButton(
+                    style: ButtonStyle(),
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text("OK"),
+                  ),
+                ],
+              );
+            },
           );
-          
-          // Remover ultimo texto do usuário depois do erro
+
+          setState(() {
+            _isProcessing = false;
+          });
         }
       }
 
@@ -160,6 +177,7 @@ class _ChatPageState extends State<ChatPage>{
   @override
   Widget build(BuildContext context){
     final theme = Theme.of(context);
+    final hasDoc = File(widget.metadata.docPath).path.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -198,6 +216,26 @@ class _ChatPageState extends State<ChatPage>{
                 if(!asyncSnapshot.hasData){
                   return const Center(child: CircularProgressIndicator());
                 }
+
+                if(!hasDoc){
+                  showDialog(
+                    context: context,
+                    builder: (context) {
+                      return AlertDialog(
+                        title: const Text("Aviso"),
+                        content: Text('O documento não pode ser encontrado!'),
+                        scrollable: true,
+                        actions: [
+                          TextButton(
+                            style: ButtonStyle(),
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text("OK"),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                }
                 
                 return ListView.builder(
                   padding: const EdgeInsets.all(12),
@@ -215,10 +253,15 @@ class _ChatPageState extends State<ChatPage>{
                         margin: const EdgeInsets.symmetric(vertical: 4),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
-                          color: message.isUser ? theme.colorScheme.primary : theme.colorScheme.surface,
+                          color: message.isUser ? theme.colorScheme.secondary : theme.colorScheme.surface,
                         ),
                         child: Text(
                           message.content!.trim(),
+                          style: TextStyle(
+                            color: message.isUser
+                            ? theme.colorScheme.onPrimary
+                            : theme.colorScheme.onSurface
+                          )
                         )
                       )
                     );
@@ -261,7 +304,7 @@ class _ChatPageState extends State<ChatPage>{
                   )
                   : IconButton(
                     icon: const Icon(Icons.send),
-                    onPressed: _isBtnEnabled ? _sendMessage : null
+                    onPressed: _hasPrompt && hasDoc ? _sendMessage : null
                   )
                 ],
               ),
@@ -293,21 +336,23 @@ void isolatedWorker(Map args) async{
       }
 
       if (data.containsKey('prompt') && llm != null) {
-        try{
-          llm.sendMsgToModel(data['prompt']!).then((res) async{
-            final text = res?.output.content.trim() ?? '';
-            sendPort.send({'answer': text});
+        llm.sendMsgToModel(data['prompt']!).then((res) async{
+          final text = res?.output.content.trim() ?? '';
+          sendPort.send({'answer': text});
 
-            llm!.dispose();
+          llm!.dispose();
 
-            await Future.delayed(Duration(milliseconds: 10));
-            sendPort.send('EOG');
-            port.close();
-            Isolate.exit();
-          });
-        } catch(e){
+          await Future.delayed(Duration(milliseconds: 10));
+          sendPort.send('EOG');
+          port.close();
+          Isolate.exit();
+        },
+        onError: (e){
+          llm!.dispose();
           sendPort.send({'error': 'Erro => $e'});
-        }
+          port.close();
+          Isolate.exit();
+        });
       }
     }
 

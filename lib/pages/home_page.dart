@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
@@ -127,35 +128,52 @@ class _HomePageState extends State<HomePage> {
             itemCount: datalen,
             itemBuilder: (BuildContext context, int index){
               final chat = asyncSnapshot.data![index];
+              final hasDoc = File(chat.docPath).path.isNotEmpty;
               return Padding(
-                padding: const EdgeInsets.only(bottom: 5),
-                child: ListTile(
-                  leading: _thumbCache.keys.contains(chat.id)
-                    ? Container(
-                      width: 40,
-                      height: 100,
-                      color: Colors.grey.shade300,
-                      child: Image.memory(
-                        _thumbCache[chat.id]!,
-                        width: 80,
-                        height: 100,
-                        fit: BoxFit.contain,
+                padding: const EdgeInsets.all(5),
+                child: Card(
+                  elevation: 3,
+                  color: theme.colorScheme.secondary,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: ListTile(
+                      iconColor: theme.colorScheme.onSecondary,
+                      textColor: theme.colorScheme.onSecondary,
+                      leading: _thumbCache.keys.contains(chat.id)
+                        ? Container(
+                          width: 40,
+                          height: 200,
+                          color: Colors.grey.shade500,
+                          child: Padding(
+                            padding: const EdgeInsets.all(0.5),
+                            child: Image.memory(
+                              _thumbCache[chat.id]!,
+                              width: 80,
+                              height: 100,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        )
+                        : const Icon(Icons.picture_as_pdf, color: Colors.red),
+                      title: Text(chat.chatName),
+                      subtitle: Text(
+                        hasDoc ? '' : 'Não foi possível encontrar o documento',
+                        style: TextStyle(color: theme.colorScheme.onError)
                       ),
-                    )
-                    : const Icon(Icons.picture_as_pdf, color: Colors.red),
-                  title: Text(chat.chatName),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: () {
-                      _dbService.deleteChat(chat.chatName);
-                      _thumbCache.remove(chat.id);
-                    },
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete),
+                        onPressed: () {
+                          _dbService.deleteChat(chat.chatName);
+                          _thumbCache.remove(chat.id);
+                        },
+                      ),
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context){
+                          return ChatPage(metadata: chat);
+                        }));
+                      }
+                    ),
                   ),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context){
-                      return ChatPage(metadata: chat);
-                    }));
-                  }
                 ),
               );
             },

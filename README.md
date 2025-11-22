@@ -43,4 +43,3 @@ Faça perguntas a arquivos PDF usando IA generativa.
         - Google Gemini ✅
         - Servidor Personalizado (compatível com API da OpenAI) ✅
         - Llama.cpp (inferência local com uso de GPU através do Vulkan) ✅
-    - Visualização de recursos do dispositivo ⚠️
