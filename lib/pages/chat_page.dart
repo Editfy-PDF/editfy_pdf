@@ -116,11 +116,27 @@ class _ChatPageState extends State<ChatPage>{
         }
 
         if(data.containsKey('error') && data['error']!.isNotEmpty){
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(data['error']!))
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text("Erro"),
+                content: Text(data['error']!),
+                scrollable: true,
+                actions: [
+                  TextButton(
+                    style: ButtonStyle(),
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text("OK"),
+                  ),
+                ],
+              );
+            },
           );
-          
-          // Remover ultimo texto do usuário depois do erro
+
+          setState(() {
+            _isProcessing = false;
+          });
         }
       }
 
@@ -215,10 +231,15 @@ class _ChatPageState extends State<ChatPage>{
                         margin: const EdgeInsets.symmetric(vertical: 4),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
-                          color: message.isUser ? theme.colorScheme.primary : theme.colorScheme.surface,
+                          color: message.isUser ? theme.colorScheme.secondary : theme.colorScheme.surface,
                         ),
                         child: Text(
                           message.content!.trim(),
+                          style: TextStyle(
+                            color: message.isUser
+                            ? theme.colorScheme.onPrimary
+                            : theme.colorScheme.onSurface
+                          )
                         )
                       )
                     );
@@ -293,21 +314,23 @@ void isolatedWorker(Map args) async{
       }
 
       if (data.containsKey('prompt') && llm != null) {
-        try{
-          llm.sendMsgToModel(data['prompt']!).then((res) async{
-            final text = res?.output.content.trim() ?? '';
-            sendPort.send({'answer': text});
+        llm.sendMsgToModel(data['prompt']!).then((res) async{
+          final text = res?.output.content.trim() ?? '';
+          sendPort.send({'answer': text});
 
-            llm!.dispose();
+          llm!.dispose();
 
-            await Future.delayed(Duration(milliseconds: 10));
-            sendPort.send('EOG');
-            port.close();
-            Isolate.exit();
-          });
-        } catch(e){
+          await Future.delayed(Duration(milliseconds: 10));
+          sendPort.send('EOG');
+          port.close();
+          Isolate.exit();
+        },
+        onError: (e){
+          llm!.dispose();
           sendPort.send({'error': 'Erro => $e'});
-        }
+          port.close();
+          Isolate.exit();
+        });
       }
     }
 
