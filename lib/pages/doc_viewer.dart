@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:editfy_pdf/colections/chat.dart';
 import 'package:flutter/material.dart';
-import 'package:pdfium_dart/pdfium_dart.dart';
+//import 'package:pdfium_dart/pdfium_dart.dart';
 
 class DocViewer extends StatefulWidget {
   final Chat metadata;
