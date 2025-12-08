@@ -42,9 +42,9 @@ dependencies:
   objectbox_flutter_libs: any
   #flutter_background_service: ^5.1.0
   langchain_llamacpp:
-    git:
-      url: https://github.com/Editfy-PDF/langchain_llamacpp.git
-      ref: main
+   git:
+     url: https://github.com/Editfy-PDF/langchain_llamacpp.git
+     ref: main
   pdfium_dart:
     git:
       url: https://github.com/Editfy-PDF/pdfium_dart.git
