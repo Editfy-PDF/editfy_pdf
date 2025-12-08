@@ -61,7 +61,7 @@ class EditfyPDF extends StatelessWidget {
     );
 
     final lightTheme = ColorScheme.light(
-      primary: const Color.fromARGB(255, 65, 64, 148),    // usado para AppBar ou fundo principal
+      primary: const Color.fromARGB(115, 24, 43, 255),    // usado para AppBar ou fundo principal
       onPrimary: Colors.white,                            // Cor do texto ou ícones sobre o primary
       secondary: const Color.fromARGB(255, 83, 81, 221),  // Usado para botões flutuantes, ícones
       onSecondary: Colors.white,                          // Cor sobre o botão/flutuante
@@ -74,7 +74,7 @@ class EditfyPDF extends StatelessWidget {
     final darkTheme = ColorScheme.dark(
       primary: const Color.fromARGB(255, 83, 81, 221),
       onPrimary: Colors.white,
-      secondary: const Color.fromARGB(255, 65, 64, 148),
+      secondary: const Color.fromARGB(115, 24, 43, 255),
       onSecondary: Colors.white,
       error: Colors.red.shade400,
       onError: Colors.yellow,

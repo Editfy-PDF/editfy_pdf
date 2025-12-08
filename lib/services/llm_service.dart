@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:editfy_pdf/colections/chat.dart';
 import 'package:editfy_pdf/services/crypto_service.dart';
@@ -26,11 +25,21 @@ class LlmService {
       throw Exception('O caminho de docPath (${chat!.docPath}) não existe!');
     }
 
-    //_startModel();
-    //Future.delayed(Duration(seconds: 20));
-
     chatMessages.add(
-      ChatMessage.system('Você é um assistente que responde de forma direta usando o conteúdo de documentos.')
+      ChatMessage.system('''Você é um assistente especializado em RAG.
+      Responda somente com informações presentes nos documentos fornecidos.
+      Se a resposta não estiver completamente sustentada pelo conteúdo, responda: “Informação não encontrada no documento”.
+      Se houver contradições nos trechos, aponte a contradição e não complemente nada fora dos documentos.
+      Não use conhecimento externo, não invente, não deduza, não extrapole.
+      Se o usuário pedir algo fora dos documentos, diga: “A solicitação está fora do escopo dos documentos fornecidos.”
+
+      FORMATO OBRIGATÓRIO DA RESPOSTA:
+
+      (resposta objetiva baseada somente nos documentos)
+
+      FONTES UTILIZADAS:
+      - (trechos citados)
+      ''')
     );
   }
 
@@ -39,19 +48,21 @@ class LlmService {
   }
 
   Future<void> _startModel() async{
-    if(config['service'] == 'openai'){
+    final service = config['service'];
+
+    if(service == 'openai'){
       model = ChatOpenAI(apiKey: await decryptAES(config['openaikey']));
     }
 
-    if(config['service'] == 'gemini') {
+    if(service == 'gemini') {
       model = ChatGoogleGenerativeAI(apiKey: await decryptAES(config['geminikey']));
     }
 
-    else if(config['service'] == 'custom'){
+    else if(service == 'custom'){
       model = ChatOpenAI(baseUrl: '${config['lanurl']!}/v1');
     }
 
-    else if(config['service'] == 'local'){
+    else if(service == 'local'){
       if(!File(config['modelpath']!).existsSync()){
         throw Exception('O caminho do modelo (${config['modelpath']}) não existe!');
       }
@@ -62,78 +73,92 @@ class LlmService {
       );
 
       model = ChatLlamacpp(modelPath: config['modelpath'], defaultOptions: options);
-    }
-  }
-
-  void openDoc(String prompt){
-    final analizer = PageAnalist();
-    List<String> extractedTextPerPage = [];
-
-    pdfium.openDocument(chat!.docPath);
-    final npages = pdfium.countPages();
-
-    chatMessages.add(ChatMessage.system('Documento PDF: ${chat!.chatName}'));
-
-    if(npages > 1){
-      for(int i=0; i < npages; i++){
-        extractedTextPerPage.add(pdfium.getText(i));
-      }
-
-      final pageRank = analizer.chunksScore(
-        List.generate(
-          extractedTextPerPage.length,
-          (int i) => analizer.tokenize(extractedTextPerPage[i])
-        ),
-        analizer.tokenize(prompt)
-      );
-
-      final List<Uint32List> chunk = [];
-
-      for(final i in pageRank.length <= 5 ? pageRank : pageRank.getRange(0, 4)){
-        final extracted = extractedTextPerPage[i.$1]
-        .trim()
-        .replaceAll('\r', '')
-        .replaceAll('\t', '  ')
-        .split('  ');
-
-        for(final txt in extracted){
-          chunk.add(analizer.tokenize(txt));
-        }
-      }
-
-      final chunkRank = analizer.chunksScore(
-        chunk,
-        analizer.tokenize(prompt)
-      );
-
-      for(final i in chunkRank.length <= 5 ? chunkRank : chunkRank.getRange(0, 4)){
-        chatMessages.add(
-          ChatMessage.system(
-            pdfium.getText(i.$1)
-          )
-        );
-      }
-
-      chatMessages.add(ChatMessage.system('Fim do documento\n'));
     } else{
-      chatMessages.addAll([
-        ChatMessage.system(pdfium.getText(0)),
-        ChatMessage.system('Fim do documento\n')
-      ]);
+      throw Exception('Serviço desconhecido: $service');
     }
   }
+
+  void openDoc(String prompt) {
+  final analizer = PageAnalist();
+  List<String> extractedTextPerPage = [];
+
+  pdfium.openDocument(chat!.docPath);
+  final npages = pdfium.countPages();
+
+  chatMessages.add(ChatMessage.system('Documento PDF: ${chat!.chatName}'));
+
+  if (npages > 2) {
+    for (int i = 0; i < npages; i++) {
+      extractedTextPerPage.add(
+        pdfium.getText(i)
+        .trim()
+        .replaceAll('\t', '')
+        .replaceAll('\r', '')
+        .replaceAll('\n', '')
+      );
+    }
+
+    final tokenizedPages = List.generate(
+      extractedTextPerPage.length,
+      (int i) => analizer.tokenize(extractedTextPerPage[i]),
+    );
+
+    final queryTokens = analizer.tokenize(prompt);
+
+    final pageRank = analizer.semanticSearchLSH(
+      tokenizedPages,
+      queryTokens,
+    );
+
+    final topk = pageRank.length < 10 ? pageRank : pageRank.sublist(0, 10);
+
+    late List<(int, double)> semanticRank;
+    if(topk.isNotEmpty){
+      semanticRank = analizer.semanticSearchLSI(
+        List.generate(topk.length, (i) => tokenizedPages[topk[i].$1]),
+        queryTokens
+      );
+    }
+    else{
+      semanticRank = analizer.semanticSearchLSI(
+        List.generate(
+          tokenizedPages.length < 10 ? tokenizedPages.length : 10,
+          (i) => tokenizedPages[i]
+        ),
+        queryTokens
+      );
+    }
+
+    chatMessages.add(ChatMessage.system('Página(s) relevante(s):'));
+
+    final top = semanticRank.length <= 2
+    ? semanticRank
+    : semanticRank.getRange(0, 2);
+
+    for (final i in top) {
+      chatMessages.add(
+        ChatMessage.system(
+          extractedTextPerPage[i.$1],
+        ),
+      );
+    }
+  }
+  else {
+    chatMessages.add(ChatMessage.system(pdfium.getText(0)));
+  }
+}
 
   void stopGeneration(){
     if(model is ChatLlamacpp){
-      (model as ChatLlamacpp).stop();
+     (model as ChatLlamacpp).stop();
     }
   }
 
   Future<ChatResult?> sendMsgToModel(String text) async{
     try{
-      openDoc(text);
-
       await _startModel();
+      
+      openDoc(text);
 
       chatMessages.add(ChatMessage.humanText(text));
 
