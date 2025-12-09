@@ -1,5 +1,5 @@
 name: editfy_pdf
-description: "A new Flutter project."
+description: "Faça perguntas a arquivos PDF usando IA generativa."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.8.1 # <-- CORREÇÃO 1: Removido o caractere de espaço inválido daqui
+  sdk: ^3.8.1
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -34,6 +34,7 @@ dependencies:
   path_provider: ^2.1.5
   provider: 6.1.2
   advance_math: ^5.3.7
+  image: 4.3.0
   objectbox: ^4.3.0
   langchain: ^0.7.8
   langchain_openai: ^0.7.4
@@ -110,14 +111,13 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 
-
 flutter_launcher_icons:
 
-  android: true # Para gerar ícones do Android
-  image_path_android: "assets/icon/icone1.png" # Apenas o desenho
-  background_image: "assets/icon/fundo.png"  # O fundo sólido que você quer
-  adaptive_icon_foreground: "assets/icon/teste12.png" # Para compatibilidade
-  adaptive_icon_background: "#12182B" # Ou o código HEX da cor azul escura exata
+  android: true
+  image_path_android: "assets/icon/icone1.png"
+  background_image: "assets/icon/fundo.png"
+  adaptive_icon_foreground: "assets/icon/teste12.png"
+  adaptive_icon_background: "#12182B"
 
 
 flutter_native_splash:

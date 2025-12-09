@@ -41,25 +41,29 @@ Future<String> encryptAES(String value) async{
 }
 
 Future<String> decryptAES(String crypted) async{
-  final serialized = crypted.split(';');
+  try{
+    final serialized = crypted.split(';');
 
-  final secretBox = SecretBox(
-    List<int>.from(jsonDecode(serialized[0])),
-    nonce: List<int>.from(jsonDecode(serialized[1])),
-    mac: Mac(
-      List<int>.from(jsonDecode(serialized[2]))
-    )
-  );
+    final secretBox = SecretBox(
+      List<int>.from(jsonDecode(serialized[0])),
+      nonce: List<int>.from(jsonDecode(serialized[1])),
+      mac: Mac(
+        List<int>.from(jsonDecode(serialized[2]))
+      )
+    );
 
-  final baseKey = await getAESKey();
+    final baseKey = await getAESKey();
 
-  final algorithm = AesGcm.with256bits();
-  final secretKey = SecretKey(base64.decode(baseKey));
+    final algorithm = AesGcm.with256bits();
+    final secretKey = SecretKey(base64.decode(baseKey));
 
-  final decripted = await algorithm.decrypt(
-    secretBox,
-    secretKey: secretKey
-  );
+    final decripted = await algorithm.decrypt(
+      secretBox,
+      secretKey: secretKey
+    );
 
-  return utf8.decode(decripted);
+    return utf8.decode(decripted);
+  } catch(e){
+    return '';
+  }
 }

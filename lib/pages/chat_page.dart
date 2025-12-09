@@ -5,6 +5,9 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import 'package:provider/provider.dart';
+
+import 'package:editfy_pdf/main.dart';
 import 'package:editfy_pdf/colections/chat.dart';
 import 'package:editfy_pdf/pages/doc_viewer.dart';
 import 'package:editfy_pdf/services/db_service.dart';
@@ -177,6 +180,7 @@ class _ChatPageState extends State<ChatPage>{
   @override
   Widget build(BuildContext context){
     final theme = Theme.of(context);
+    final serviceType = Provider.of<DefinitionsProvider>(context).cfgService.config['service'];
     final hasDoc = File(widget.metadata.docPath).path.isNotEmpty;
 
     return Scaffold(
@@ -292,7 +296,7 @@ class _ChatPageState extends State<ChatPage>{
                     ),
                   ),
 
-                  _isProcessing
+                  _isProcessing && serviceType == 'local'
                   ? IconButton(
                     icon: const Icon(Icons.stop),
                     onPressed: (){

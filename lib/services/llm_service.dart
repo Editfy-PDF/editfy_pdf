@@ -14,15 +14,16 @@ import 'package:langchain_llamacpp/langchain_llamacpp.dart';
 
 class LlmService {
   late Map<String, dynamic> config;
-  late  BaseChatModel model;
+  late  BaseChatModel? model;
   final List<ChatMessage> chatMessages = [];
   late Chat? chat;
+  final List<String> error = [];
   final pdfium = Pdfium(null);
 
   LlmService({required this.config, this.chat, String chatName='', String docPath=''}){
     chat ??= Chat(chatName: chatName, docPath: docPath);
     if(!File(chat!.docPath).existsSync()){
-      throw Exception('O caminho de docPath (${chat!.docPath}) não existe!');
+      error.add('O caminho de docPath (${chat!.docPath}) não existe!');
     }
 
     chatMessages.add(
@@ -44,27 +45,42 @@ class LlmService {
   }
 
   void dispose(){
-    model.close();
+    model?.close();
   }
 
   Future<void> _startModel() async{
     final service = config['service'];
 
     if(service == 'openai'){
-      model = ChatOpenAI(apiKey: await decryptAES(config['openaikey']));
+      final key = await decryptAES(config['openaikey']);
+      print(' API -> $key');
+      if(key == '') error.add('Chave de API está vazia');
+      
+      model = ChatOpenAI(apiKey: key);
     }
 
-    if(service == 'gemini') {
-      model = ChatGoogleGenerativeAI(apiKey: await decryptAES(config['geminikey']));
+    else if(service == 'gemini') {
+      final key = await decryptAES(config['geminikey']);
+      print(' API -> $key');
+      if(key == '') error.add('Chave de API está vazia');
+      
+      model = ChatGoogleGenerativeAI(apiKey: key);
     }
 
     else if(service == 'custom'){
-      model = ChatOpenAI(baseUrl: '${config['lanurl']!}/v1');
+      try{
+        final url = '${config['lanurl']!}/v1';
+        model = ChatOpenAI(baseUrl: url);
+      } catch(e){
+        model = null;
+        final url = '${config['lanurl']!}/v1';
+        error.add(url.startsWith('/v1') ? 'URL está vazia' : e.toString());
+      }
     }
 
     else if(service == 'local'){
       if(!File(config['modelpath']!).existsSync()){
-        throw Exception('O caminho do modelo (${config['modelpath']}) não existe!');
+        error.add('O caminho do modelo (${config['modelpath']}) não existe!');
       }
       
       final options = ChatLlamaOptions(
@@ -74,11 +90,11 @@ class LlmService {
 
       model = ChatLlamacpp(modelPath: config['modelpath'], defaultOptions: options);
     } else{
-      throw Exception('Serviço desconhecido: $service');
+      error.add('Serviço desconhecido: $service');
     }
   }
 
-  void openDoc(String prompt) {
+  bool openDoc(String prompt) {
   final analizer = PageAnalist();
   List<String> extractedTextPerPage = [];
 
@@ -96,6 +112,9 @@ class LlmService {
         .replaceAll('\r', '')
         .replaceAll('\n', '')
       );
+    }
+    if(extractedTextPerPage.join('').trim() == ''){
+      return false;
     }
 
     final tokenizedPages = List.generate(
@@ -144,8 +163,22 @@ class LlmService {
     }
   }
   else {
-    chatMessages.add(ChatMessage.system(pdfium.getText(0)));
+    final List<String> pagesText = [];
+    for(int i=0; i<npages; i++){
+      pagesText.add(
+        pdfium.getText(i)
+        .trim()
+        .replaceAll('\t', '')
+        .replaceAll('\r', '')
+        .replaceAll('\n', '')
+      );
+    }
+    if(pagesText.join('').trim() == '') return false;
+
+    chatMessages.add(ChatMessage.system(pagesText.join('\n').trim()));
   }
+
+  return true;
 }
 
   void stopGeneration(){
@@ -157,12 +190,15 @@ class LlmService {
   Future<ChatResult?> sendMsgToModel(String text) async{
     try{
       await _startModel();
-      
-      openDoc(text);
+      print('erros -> $error');
+      if(error.isNotEmpty) throw Exception(error[0]);
+
+      final status = openDoc(text);
+      if(!status) throw Exception('Este documento não tem texto para extração');
 
       chatMessages.add(ChatMessage.humanText(text));
 
-      final resp = await model.invoke(PromptValue.chat(chatMessages));
+      final resp = await model!.invoke(PromptValue.chat(chatMessages));
 
       return resp;
     } catch(e) {
