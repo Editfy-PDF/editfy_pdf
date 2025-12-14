@@ -148,7 +148,7 @@ class LlmService {
 
     final top = semanticRank.length <= 2
     ? semanticRank
-    : semanticRank.getRange(0, 2);
+    : semanticRank.getRange(0, 1);
 
     chatMessages.add(ChatMessage.system('''<CONTEXT>
     [Nome do arquivo: ${chat!.chatName}
