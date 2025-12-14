@@ -27,19 +27,20 @@ class LlmService {
     }
 
     chatMessages.add(
-      ChatMessage.system('''Você é um assistente especializado em RAG.
-      Responda somente com informações presentes nos documentos fornecidos.
-      Se a resposta não estiver completamente sustentada pelo conteúdo, responda: “Informação não encontrada no documento”.
+      ChatMessage.system('''
+      [Você é um assistente especializado em RAG.
+      SUA RESPOSTA DEVE SER BASEADA APENAS NO CONTEXTO FORNECIDO.
+      SUA resposta DEVE SER CURTA E DIRETA 
+      NÃO REPITA as instruções dentro das tegs "system".
+      SÓ RESPONDA na tag "assistant".
+      
+      1. Se o contexto TIVER a resposta, CITE as informações e o número da página (se disponível)
+
+      2. Se o contexto NÃO CONTIVER informações suficientes, você DEVE responder: “Informação não encontrada no documento”.
       Se houver contradições nos trechos, aponte a contradição e não complemente nada fora dos documentos.
-      Não use conhecimento externo, não invente, não deduza, não extrapole.
-      Se o usuário pedir algo fora dos documentos, diga: “A solicitação está fora do escopo dos documentos fornecidos.”
-
-      FORMATO OBRIGATÓRIO DA RESPOSTA:
-
-      (resposta objetiva baseada somente nos documentos)
-
-      FONTES UTILIZADAS:
-      - (trechos citados)
+      Não use seu conhecimento interno, não invente, não deduza, não extrapole.
+      
+      3. Se o usuário pedir algo FORA dos documentos, responda: “A solicitação está fora do escopo dos documentos fornecidos.”]
       ''')
     );
   }
@@ -53,7 +54,6 @@ class LlmService {
 
     if(service == 'openai'){
       final key = await decryptAES(config['openaikey']);
-      print(' API -> $key');
       if(key == '') error.add('Chave de API está vazia');
       
       model = ChatOpenAI(apiKey: key);
@@ -61,7 +61,6 @@ class LlmService {
 
     else if(service == 'gemini') {
       final key = await decryptAES(config['geminikey']);
-      print(' API -> $key');
       if(key == '') error.add('Chave de API está vazia');
       
       model = ChatGoogleGenerativeAI(apiKey: key);
@@ -85,7 +84,8 @@ class LlmService {
       
       final options = ChatLlamaOptions(
         model: config['modelpath'],
-        numCtx: 0
+        numCtx: 4096,
+        temperature: 0.2
       );
 
       model = ChatLlamacpp(modelPath: config['modelpath'], defaultOptions: options);
@@ -100,8 +100,6 @@ class LlmService {
 
   pdfium.openDocument(chat!.docPath);
   final npages = pdfium.countPages();
-
-  chatMessages.add(ChatMessage.system('Documento PDF: ${chat!.chatName}'));
 
   if (npages > 2) {
     for (int i = 0; i < npages; i++) {
@@ -148,19 +146,19 @@ class LlmService {
       );
     }
 
-    chatMessages.add(ChatMessage.system('Página(s) relevante(s):'));
-
     final top = semanticRank.length <= 2
     ? semanticRank
     : semanticRank.getRange(0, 2);
 
+    chatMessages.add(ChatMessage.system('''<CONTEXT>
+    [Nome do arquivo: ${chat!.chatName}
+    '''));
     for (final i in top) {
-      chatMessages.add(
-        ChatMessage.system(
-          extractedTextPerPage[i.$1],
-        ),
-      );
+      chatMessages.add(ChatMessage.system(
+        '(Página ${i.$1}) ${extractedTextPerPage[i.$1]}'
+      ));
     }
+    chatMessages.add(ChatMessage.system(']</CONTEXT>'));
   }
   else {
     final List<String> pagesText = [];
@@ -175,7 +173,12 @@ class LlmService {
     }
     if(pagesText.join('').trim() == '') return false;
 
-    chatMessages.add(ChatMessage.system(pagesText.join('\n').trim()));
+    chatMessages.add(ChatMessage.system(
+      '''<CONTEXTO>
+      [Nome do arquivo: ${chat!.chatName}
+      ${pagesText.join('\n').trim()}]
+      </CONTEXTO>'''
+    ));
   }
 
   return true;
@@ -190,13 +193,13 @@ class LlmService {
   Future<ChatResult?> sendMsgToModel(String text) async{
     try{
       await _startModel();
-      print('erros -> $error');
+      
       if(error.isNotEmpty) throw Exception(error[0]);
 
       final status = openDoc(text);
       if(!status) throw Exception('Este documento não tem texto para extração');
 
-      chatMessages.add(ChatMessage.humanText(text));
+      chatMessages.add(ChatMessage.humanText('$text\nassistant:'));
 
       final resp = await model!.invoke(PromptValue.chat(chatMessages));
 
